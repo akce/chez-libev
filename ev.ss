@@ -2,64 +2,30 @@
 ;; Copyright (C) 2019 Akce. Released under the MIT license.
 (library (ev)
   (export
-   EV_VERSION_MAJOR
-   EV_VERSION_MINOR
-   ev-io
-   ev-io-fd-get
-   ev-io-events-get
-   ev-timer
-   ev-timer-repeat-get
-   ev-timer-repeat-set
-   ev-periodic
-   ev-periodic-offset-get
-   ev-periodic-offset-set
-   ev-periodic-interval-get
-   ev-periodic-interval-set
-   ev-periodic-rcb-get
-   ev-periodic-rcb-set
-   ev-signal
-   ev-signal-signum-get
-   ev-child
-   ev-child-pid-get
-   ev-child-rpid-get
-   ev-child-rpid-set
-   ev-child-rstatus-get
-   ev-child-rstatus-set
+   EV_VERSION_MAJOR EV_VERSION_MINOR
+
+   ;; Event watchers.
+   ev-io ev-io-fd-get ev-io-events-get
+   ev-timer ev-timer-repeat-get ev-timer-repeat-set
+   ev-periodic ev-periodic-offset-get ev-periodic-offset-set ev-periodic-interval-get ev-periodic-interval-set ev-periodic-rcb-get ev-periodic-rcb-set
+   ev-signal ev-signal-signum-get
+   ev-child ev-child-pid-get ev-child-rpid-get ev-child-rpid-set ev-child-rstatus-get ev-child-rstatus-set
    ev-stat
    ev-idle
    ev-prepare
    ev-check
-   ev-embed
-   ev-embed-other-get
+   ev-embed ev-embed-other-get
    ev-fork
    ev-cleanup
-   ev-async
-   ev-async-pending-get)
+   ev-async ev-async-pending-get)
   (import
-   (chezscheme))
+   (chezscheme)
+   (ftypes-util))
 
   (define load-libev
     (load-shared-object "libev.so.4"))
   (define load-libev-ffi
     (load-shared-object "./libev-ffi.so"))
-
-  (define-syntax c_funcs
-    (lambda (stx)
-      (define string-map
-        (lambda (func str)
-          (list->string (map func (string->list str)))))
-      (define symbol->curses-name
-        (lambda (sym)
-          (string-map (lambda (c)
-                        (if (eqv? c #\-)
-                            #\_ c))
-                      (symbol->string sym))))
-      (syntax-case stx ()
-        [(_ (name args return))
-         (quasisyntax
-          (define name
-            (foreign-procedure (unsyntax (symbol->curses-name (syntax->datum #'name))) args return)))]
-        [(_ f ...) (syntax (begin (c_funcs f) ...))])))
 
   (define EV_VERSION_MAJOR
     ((foreign-procedure "ev_version_major" () int)))
