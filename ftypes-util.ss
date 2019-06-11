@@ -2,7 +2,8 @@
 ;; Released into the public domain.
 (library (ftypes-util)
   (export
-   c_funcs)
+   c_funcs
+   enum)
   (import
    (chezscheme))
 
@@ -30,4 +31,9 @@
          (quasisyntax
           (define name
             (foreign-procedure (unsyntax (symbol->curses-name (syntax->datum #'name))) args return)))]
-        [(_ f ...) (syntax (begin (c_funcs f) ...))]))))
+        [(_ f ...) (syntax (begin (c_funcs f) ...))])))
+
+  (define-syntax enum
+    (syntax-rules ()
+      [(_ name (symbol value) ...)
+       (begin (define symbol value) ...)])))
