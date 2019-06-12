@@ -184,7 +184,7 @@
    (ev-embeddable-backends	()		unsigned)
    ;; time related
    (ev-time			()		ev-tstamp)
-   (ev-sleep			(ev-tstamp)	void)
+   (ev_sleep			(ev-tstamp)	void)
    ;; raw ev prototypes: these will be wrapped around more helpful scheme functions below.
    (ev_set_allocator	((* realloc-fn))	void)
    (ev_set_syserr_cb	((* msg-cb-fn))		void)
@@ -205,8 +205,8 @@
    (ev-iteration	(ev-loop*)		unsigned)
    (ev-depth		(ev-loop*)		unsigned)
    (ev-verify		(ev-loop*)		void)
-   (ev-set-io-collect-interval		(ev-loop* ev-tstamp)	void)
-   (ev-set-timeout-collect-interval	(ev-loop* ev-tstamp)	void)
+   (ev_set_io_collect_interval		(ev-loop* ev-tstamp)	void)
+   (ev_set_timeout_collect_interval	(ev-loop* ev-tstamp)	void)
    (ev-set-userdata	(ev-loop* void*)	void)
    (ev-userdata		(ev-loop*)		void*)
    ;; TODO wrap these threading callback setters.
@@ -274,11 +274,11 @@
    (ev-io-fd-get		(ev-io*)	int)
    (ev-io-events-get		(ev-io*)	int)
    (ev-timer-repeat-get		(ev-timer*)	ev-tstamp)
-   (ev-timer-repeat-set		(ev-timer* ev-tstamp) void)
+   (ev_timer_repeat_set		(ev-timer* ev-tstamp) void)
    (ev-periodic-offset-get	(ev-periodic*) ev-tstamp)
-   (ev-periodic-offset-set	(ev-periodic* ev-tstamp) void)
+   (ev_periodic_offset_set	(ev-periodic* ev-tstamp) void)
    (ev-periodic-interval-get	(ev-periodic*) ev-tstamp)
-   (ev-periodic-interval-set	(ev-periodic* ev-tstamp) void)
+   (ev_periodic_interval_set	(ev-periodic* ev-tstamp) void)
    (ev-periodic-rcb-get		(ev-periodic*) (* ev-periodic-rcb-t))
    (ev-periodic-rcb-set		(ev-periodic* (* ev-periodic-rcb-t)) void)
    (ev-signal-signum-get	(ev-signal*)	int)
@@ -301,6 +301,10 @@
   (enum ev-version
    (EV_VERSION_MAJOR (ev-version-major))
    (EV_VERSION_MINOR (ev-version-minor)))
+
+  (define ev-sleep
+    (lambda (len)
+      (ev_sleep (->double len))))
 
   ;; TODO
   ;; (define ev-set-allocator)
@@ -328,17 +332,25 @@
      [(loop)		(ev-break loop EVBREAK_ONE)]
      [(loop how)	(ev_break loop how)]))
 
+  (define ev-set-io-collect-interval
+    (lambda (loop interval)
+      (ev_set_io_collect_interval loop (->double interval))))
+
+  (define ev-set-timeout-collect-interval
+    (lambda (loop interval)
+      (ev_set_timeout_collect_interval loop (->double interval))))
+
   (define ev-io
     (lambda (fd events cb)
       (make-ev-io fd events (make-ftype-pointer ev-io-cb-t cb))))
 
   (define ev-timer
     (lambda (after repeat cb)
-      (make-ev-timer after repeat (make-ftype-pointer ev-timer-cb-t cb))))
+      (make-ev-timer (->double after) (->double repeat) (make-ftype-pointer ev-timer-cb-t cb))))
 
   (define ev-periodic
     (lambda (offset interval rcb cb)
-      (make-ev-periodic offset interval (make-ftype-pointer ev-periodic-rcb-t rcb) (make-ftype-pointer ev-periodic-cb-t cb))))
+      (make-ev-periodic (->double offset) (->double interval) (make-ftype-pointer ev-periodic-rcb-t rcb) (make-ftype-pointer ev-periodic-cb-t cb))))
 
   (define ev-signal
     (lambda (signum cb)
@@ -350,7 +362,7 @@
 
   (define ev-stat
     (lambda (path interval cb)
-      (make-ev-stat path interval (make-ftype-pointer ev-stat-cb-t cb))))
+      (make-ev-stat path (->double interval) (make-ftype-pointer ev-stat-cb-t cb))))
 
   (define ev-idle
     (lambda (cb)
@@ -378,4 +390,23 @@
 
   (define ev-async
     (lambda (cb)
-      (make-ev-async (make-ftype-pointer ev-async-cb-t cb)))))
+      (make-ev-async (make-ftype-pointer ev-async-cb-t cb))))
+
+  (define ev-timer-repeat-set
+    (lambda (timer repeat)
+      (ev_timer_repeat_set timer (->double repeat))))
+
+  (define ev-periodic-offset-set
+    (lambda (periodic offset)
+      (ev_periodic_offset_set periodic (->double offset))))
+
+  (define ev-periodic-interval-set
+    (lambda (periodic interval)
+      (ev_periodic_interval_set periodic (->double interval))))
+
+  ;; [procedure] ->double: ensures number is converted to a double if necessary.
+  (define ->double
+    (lambda (num)
+      (cond
+       [(fixnum? num) (fixnum->flonum num)]
+       [else num]))))

@@ -7,8 +7,7 @@
  (rnrs))
 
 (define tw
-  ;; ev-tstamp is a double, so must pass numbers of that type to ev-timer.
-  (ev-timer 1.0 5.
+  (ev-timer 1 5.
     (let ([j 0])
       (lambda (loop timer i)
         (set! j (+ 1 j))
