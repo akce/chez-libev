@@ -40,13 +40,13 @@
        (begin (define symbol value) ...)]))
 
   ;; [procedure] locate-library-object: find first instance of filename within (library-directories) object directories.
-  ;; Returns full path of located file, including the filename itself. #f if not found.
+  ;; Returns full path of located file, including the filename itself. filename only if not found.
   (define locate-library-object
     (lambda (filename)
       (let loop ([fps (map (lambda (d) (string-append (cdr d) "/" filename)) (library-directories))])
         (cond
          [(null? fps)
-          #f]
+          filename]
          [(file-exists? (car fps))
           (car fps)]
          [else
