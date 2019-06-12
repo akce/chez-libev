@@ -3,7 +3,8 @@
 (library (ftypes-util)
   (export
    c_funcs
-   enum)
+   enum
+   locate-library-object)
   (import
    (chezscheme))
 
@@ -36,4 +37,17 @@
   (define-syntax enum
     (syntax-rules ()
       [(_ name (symbol value) ...)
-       (begin (define symbol value) ...)])))
+       (begin (define symbol value) ...)]))
+
+  ;; [procedure] locate-library-object: find first instance of filename within (library-directories) object directories.
+  ;; Returns full path of located file, including the filename itself. #f if not found.
+  (define locate-library-object
+    (lambda (filename)
+      (let loop ([fps (map (lambda (d) (string-append (cdr d) "/" filename)) (library-directories))])
+        (cond
+         [(null? fps)
+          #f]
+         [(file-exists? (car fps))
+          (car fps)]
+         [else
+          (loop (cdr fps))])))))

@@ -78,7 +78,7 @@
   (define load-libev
     (load-shared-object "libev.so.4"))
   (define load-libev-ffi
-    (load-shared-object "./libev-ffi.so"))
+    (load-shared-object (locate-library-object "libchez-ev.so")))
 
   (enum	event-masks
    (EV_UNDEF	#xFFFFFFFF)
