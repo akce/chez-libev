@@ -528,57 +528,65 @@
     (lambda (w)
       (ev_async_send (current-loop) w)))
 
+  (define-syntax make-cb
+    (syntax-rules ()
+      [(_ cb-t cb)
+       (make-ftype-pointer cb-t
+         (lambda (loop w rev)
+           (parameterize ([current-loop loop])
+             (cb w rev))))]))
+
   (define ev-io
     (lambda (fd events cb)
-      (make-ev-io fd events (make-ftype-pointer ev-io-cb-t cb))))
+      (make-ev-io fd events (make-cb ev-io-cb-t cb))))
 
   (define ev-timer
     (lambda (after repeat cb)
-      (make-ev-timer (->double after) (->double repeat) (make-ftype-pointer ev-timer-cb-t cb))))
+      (make-ev-timer (->double after) (->double repeat) (make-cb ev-timer-cb-t cb))))
 
   (define ev-periodic
     (lambda (offset interval rcb cb)
-      (make-ev-periodic (->double offset) (->double interval) (make-ftype-pointer ev-periodic-rcb-t rcb) (make-ftype-pointer ev-periodic-cb-t cb))))
+      (make-ev-periodic (->double offset) (->double interval) (make-ftype-pointer ev-periodic-rcb-t rcb) (make-cb ev-periodic-cb-t cb))))
 
   (define ev-signal
     (lambda (signum cb)
-      (make-ev-signal signum (make-ftype-pointer ev-signal-cb-t cb))))
+      (make-ev-signal signum (make-cb ev-signal-cb-t cb))))
 
   (define ev-child
     (lambda (pid trace cb)
-      (make-ev-child pid trace (make-ftype-pointer ev-child-cb-t cb))))
+      (make-ev-child pid trace (make-cb ev-child-cb-t cb))))
 
   (define ev-stat
     (lambda (path interval cb)
-      (make-ev-stat path (->double interval) (make-ftype-pointer ev-stat-cb-t cb))))
+      (make-ev-stat path (->double interval) (make-cb ev-stat-cb-t cb))))
 
   (define ev-idle
     (lambda (cb)
-      (make-ev-idle (make-ftype-pointer ev-idle-cb-t cb))))
+      (make-ev-idle (make-cb ev-idle-cb-t cb))))
 
   (define ev-prepare
     (lambda (cb)
-      (make-ev-prepare (make-ftype-pointer ev-prepare-cb-t cb))))
+      (make-ev-prepare (make-cb ev-prepare-cb-t cb))))
 
   (define ev-check
     (lambda (cb)
-      (make-ev-check (make-ftype-pointer ev-check-cb-t cb))))
+      (make-ev-check (make-cb ev-check-cb-t cb))))
 
   (define ev-embed
     (lambda (other cb)
-      (make-ev-embed other (make-ftype-pointer ev-embed-cb-t cb))))
+      (make-ev-embed other (make-cb ev-embed-cb-t cb))))
 
   (define ev-fork
     (lambda (cb)
-      (make-ev-fork (make-ftype-pointer ev-fork-cb-t cb))))
+      (make-ev-fork (make-cb ev-fork-cb-t cb))))
 
   (define ev-cleanup
     (lambda (cb)
-      (make-ev-cleanup (make-ftype-pointer ev-cleanup-cb-t cb))))
+      (make-ev-cleanup (make-cb ev-cleanup-cb-t cb))))
 
   (define ev-async
     (lambda (cb)
-      (make-ev-async (make-ftype-pointer ev-async-cb-t cb))))
+      (make-ev-async (make-cb ev-async-cb-t cb))))
 
   (define ev-timer-repeat-set
     (lambda (timer repeat)
