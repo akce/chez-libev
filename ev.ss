@@ -181,6 +181,8 @@
   (c_funcs
    ;;;;;;; EV_PROTOTYPES
    ;; meta funcs
+   (ev-version-major-def	()		int)
+   (ev-version-minor-def	()		int)
    (ev-version-major		()		int)
    (ev-version-minor		()		int)
    (ev-supported-backends	()		unsigned)
@@ -303,8 +305,8 @@
    )
 
   (enum ev-version
-   (EV_VERSION_MAJOR (ev-version-major))
-   (EV_VERSION_MINOR (ev-version-minor)))
+   (EV_VERSION_MAJOR (ev-version-major-def))
+   (EV_VERSION_MINOR (ev-version-minor-def)))
 
   (define ev-sleep
     (lambda (len)

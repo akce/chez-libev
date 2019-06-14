@@ -13,6 +13,10 @@
 
 #include <stdlib.h>	// memset
 
+/* EV_VERSION_* may not equal ev_version_*() so provide accessors to the #defines. */
+int ev_version_major_def(void) {return EV_VERSION_MAJOR;}
+int ev_version_minor_def(void) {return EV_VERSION_MINOR;}
+
 /* Define ev_loop_t shorthand. Saves on typing struct ev_loop. */
 typedef struct ev_loop ev_loop_t;
 
