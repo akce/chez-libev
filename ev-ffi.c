@@ -1,5 +1,5 @@
 /*
- * Macros from ev.h converted to, or embedded in, C functions useful for FFI language authors.
+ * Macros from ev.h converted to, or embedded in, C functions useful for FFI bindings.
  *
  * Copyright (C) 2019 Akce. Released under the MIT license.
  */
