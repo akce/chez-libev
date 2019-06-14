@@ -13,7 +13,6 @@
         (set! j (+ 1 j))
         (display "timer called ")(display j)(newline)
         (when (> j 4)
-          (ev-break loop EVBREAK_ONE))))))
-(ev-timer-start EV_DEFAULT tw)
-
-(ev-run EV_DEFAULT)
+          (ev-break EVBREAK_ONE))))))
+(ev-timer-start tw)
+(ev-run)
