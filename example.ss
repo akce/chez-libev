@@ -14,5 +14,4 @@
         (display "timer called ")(display j)(newline)
         (when (> j 4)
           (ev-break EVBREAK_ONE))))))
-(ev-timer-start tw)
 (ev-run)

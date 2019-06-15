@@ -538,57 +538,63 @@
            (parameterize ([current-loop loop])
              (cb w rev))))]))
 
+  ;; [syntax] sar: start and return the watcher.
+  (define-syntax sar
+    (syntax-rules ()
+      [(_ func w)
+       (begin (func w) w)]))
+
   (define ev-io
     (lambda (fd events cb)
-      (make-ev-io fd events (make-cb ev-io-cb-t cb))))
+      (sar ev-io-start (make-ev-io fd events (make-cb ev-io-cb-t cb)))))
 
   (define ev-timer
     (lambda (after repeat cb)
-      (make-ev-timer (->double after) (->double repeat) (make-cb ev-timer-cb-t cb))))
+      (sar ev-timer-start (make-ev-timer (->double after) (->double repeat) (make-cb ev-timer-cb-t cb)))))
 
   (define ev-periodic
     (lambda (offset interval rcb cb)
-      (make-ev-periodic (->double offset) (->double interval) (make-ftype-pointer ev-periodic-rcb-t rcb) (make-cb ev-periodic-cb-t cb))))
+      (sar ev-periodic-start (make-ev-periodic (->double offset) (->double interval) (make-ftype-pointer ev-periodic-rcb-t rcb) (make-cb ev-periodic-cb-t cb)))))
 
   (define ev-signal
     (lambda (signum cb)
-      (make-ev-signal signum (make-cb ev-signal-cb-t cb))))
+      (sar ev-signal-start (make-ev-signal signum (make-cb ev-signal-cb-t cb)))))
 
   (define ev-child
     (lambda (pid trace cb)
-      (make-ev-child pid trace (make-cb ev-child-cb-t cb))))
+      (sar ev-child-start (make-ev-child pid trace (make-cb ev-child-cb-t cb)))))
 
   (define ev-stat
     (lambda (path interval cb)
-      (make-ev-stat path (->double interval) (make-cb ev-stat-cb-t cb))))
+      (sar ev-stat-start (make-ev-stat path (->double interval) (make-cb ev-stat-cb-t cb)))))
 
   (define ev-idle
     (lambda (cb)
-      (make-ev-idle (make-cb ev-idle-cb-t cb))))
+      (sar ev-idle-start (make-ev-idle (make-cb ev-idle-cb-t cb)))))
 
   (define ev-prepare
     (lambda (cb)
-      (make-ev-prepare (make-cb ev-prepare-cb-t cb))))
+      (sar ev-prepare-start (make-ev-prepare (make-cb ev-prepare-cb-t cb)))))
 
   (define ev-check
     (lambda (cb)
-      (make-ev-check (make-cb ev-check-cb-t cb))))
+      (sar ev-check-start (make-ev-check (make-cb ev-check-cb-t cb)))))
 
   (define ev-embed
     (lambda (other cb)
-      (make-ev-embed other (make-cb ev-embed-cb-t cb))))
+      (sar ev-embed-start (make-ev-embed other (make-cb ev-embed-cb-t cb)))))
 
   (define ev-fork
     (lambda (cb)
-      (make-ev-fork (make-cb ev-fork-cb-t cb))))
+      (sar ev-fork-start (make-ev-fork (make-cb ev-fork-cb-t cb)))))
 
   (define ev-cleanup
     (lambda (cb)
-      (make-ev-cleanup (make-cb ev-cleanup-cb-t cb))))
+      (sar ev-cleanup-start (make-ev-cleanup (make-cb ev-cleanup-cb-t cb)))))
 
   (define ev-async
     (lambda (cb)
-      (make-ev-async (make-cb ev-async-cb-t cb))))
+      (sar ev-async-start (make-ev-async (make-cb ev-async-cb-t cb)))))
 
   (define ev-timer-repeat-set
     (lambda (timer repeat)
