@@ -73,7 +73,12 @@
    ev-embed ev-embed-other-get
    ev-fork
    ev-cleanup
-   ev-async ev-async-pending-get)
+   ev-async ev-async-pending-get
+
+   ;; Signal numbers.
+   SIGABRT SIGALRM SIGBUS SIGCHLD SIGCLD SIGCONT SIGFPE SIGHUP SIGILL SIGINT SIGIO SIGIOT SIGKILL
+   SIGPIPE SIGPOLL SIGPROF SIGPWR SIGQUIT SIGSEGV SIGSTKFLT SIGSTOP SIGTSTP SIGSYS SIGTERM SIGTRAP
+   SIGTTIN SIGTTOU SIGURG SIGUSR1 SIGUSR2 SIGVTALRM SIGXCPU SIGXFSZ SIGWINCH)
   (import
    (chezscheme)
    (ftypes-util))
@@ -617,4 +622,40 @@
     (lambda (num)
       (cond
        [(fixnum? num) (fixnum->flonum num)]
-       [else num]))))
+       [else num])))
+
+  (enum signal
+   (SIGABRT	((foreign-procedure "SIGABRT_def" () int)))
+   (SIGALRM	((foreign-procedure "SIGALRM_def" () int)))
+   (SIGBUS	((foreign-procedure "SIGBUS_def" () int)))
+   (SIGCHLD	((foreign-procedure "SIGCHLD_def" () int)))
+   (SIGCLD	((foreign-procedure "SIGCLD_def" () int)))
+   (SIGCONT	((foreign-procedure "SIGCONT_def" () int)))
+   (SIGFPE	((foreign-procedure "SIGFPE_def" () int)))
+   (SIGHUP	((foreign-procedure "SIGHUP_def" () int)))
+   (SIGILL	((foreign-procedure "SIGILL_def" () int)))
+   (SIGINT	((foreign-procedure "SIGINT_def" () int)))
+   (SIGIO	((foreign-procedure "SIGIO_def" () int)))
+   (SIGIOT	((foreign-procedure "SIGIOT_def" () int)))
+   (SIGKILL	((foreign-procedure "SIGKILL_def" () int)))
+   (SIGPIPE	((foreign-procedure "SIGPIPE_def" () int)))
+   (SIGPOLL	((foreign-procedure "SIGPOLL_def" () int)))
+   (SIGPROF	((foreign-procedure "SIGPROF_def" () int)))
+   (SIGPWR	((foreign-procedure "SIGPWR_def" () int)))
+   (SIGQUIT	((foreign-procedure "SIGQUIT_def" () int)))
+   (SIGSEGV	((foreign-procedure "SIGSEGV_def" () int)))
+   (SIGSTKFLT	((foreign-procedure "SIGSTKFLT_def" () int)))
+   (SIGSTOP	((foreign-procedure "SIGSTOP_def" () int)))
+   (SIGTSTP	((foreign-procedure "SIGTSTP_def" () int)))
+   (SIGSYS	((foreign-procedure "SIGSYS_def" () int)))
+   (SIGTERM	((foreign-procedure "SIGTERM_def" () int)))
+   (SIGTRAP	((foreign-procedure "SIGTRAP_def" () int)))
+   (SIGTTIN	((foreign-procedure "SIGTTIN_def" () int)))
+   (SIGTTOU	((foreign-procedure "SIGTTOU_def" () int)))
+   (SIGURG	((foreign-procedure "SIGURG_def" () int)))
+   (SIGUSR1	((foreign-procedure "SIGUSR1_def" () int)))
+   (SIGUSR2	((foreign-procedure "SIGUSR2_def" () int)))
+   (SIGVTALRM	((foreign-procedure "SIGVTALRM_def" () int)))
+   (SIGXCPU	((foreign-procedure "SIGXCPU_def" () int)))
+   (SIGXFSZ	((foreign-procedure "SIGXFSZ_def" () int)))
+   (SIGWINCH	((foreign-procedure "SIGWINCH_def" () int)))))
