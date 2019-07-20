@@ -25,7 +25,7 @@ LIBFLAGS = -shared
 
 ## Should be no need to edit anything below here.
 
-COBJS = ev-ffi.o signum.o
+COBJS = ev-ffi.o
 
 # SOBJS need to be in order of dependencies first, library last so that they can be joined for the distribution file.
 SOBJS = ftypes-util.so ev.so
