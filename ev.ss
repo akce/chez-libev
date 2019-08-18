@@ -542,7 +542,9 @@
   (define-syntax sar
     (syntax-rules ()
       [(_ func w)
-       (begin (func w) w)]))
+       (let ([x w])
+         (func x)
+         x)]))
 
   (define ev-io
     (lambda (fd events cb)
