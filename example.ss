@@ -14,4 +14,12 @@
         (display "timer called ")(display j)(newline)
         (when (> j 4)
           (ev-break EVBREAK_ONE))))))
+
+(define stdinw
+  (ev-io 0 EV_READ
+    (lambda (w rev)
+      (display "key activity ")(display rev)(newline)
+      (ev-io-stop w)
+      (ev-break EVBREAK_ALL))))
+
 (ev-run)
