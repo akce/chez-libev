@@ -154,22 +154,34 @@
   ;; Behaves as c-enum, except each field defines a bit. Querying for symbols returns a list.
   ;;
   ;; eg,
-  ;; > (c-bitmap flags A B C D)
+  ;; > (c-bitmap flags (A 1) (B 4) (C 8))
+  ;; > (flags)
+  ;; ((A . 1) (B . 4) (C . 8))
   ;; > (flags 'A)
-  ;; 0
-  ;; > (flags 'B)
   ;; 1
+  ;; > (flags 'B)
+  ;; 4
   ;; > (flags 'C)
-  ;; 2
-  ;; > (flags #b110)
-  ;; (B C)
+  ;; 8
+  ;; > (flags #b0)
+  ;; ()
+  ;; > (flags #b1)
+  ;; (A)
   ;; > (flags #b10)
-  ;; (B)
+  ;; ()
+  ;; > (flags #b111)
+  ;; (A B)
+  ;; > (flags #b1111)
+  ;; (A B C)
+  ;; > (flags #b1100)
+  ;; (B C)
   (define-syntax c-bitmap
     (lambda (stx)
       (syntax-case stx ()
         [(_ name bitdef1 bitdef* ...)
          (with-syntax
+           ;; TODO define parser separate from enum that defaults to left shifting successive fields.
+           ;; TODO or at least forces explicit setting of field bits.
           ([((esym eid) ...) (parse-enum-bit-defs #'(bitdef1 bitdef* ...))])
           #'(define name
               (case-lambda
