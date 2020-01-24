@@ -179,7 +179,7 @@
   (define-ftype ev-loop-callback (function (ev-loop*)	void))
 
   ;; raw ev prototypes: those declared with underscores will be wrapped with scheme functions later.
-  (c_funcs
+  (c-function
    ;;;;;;; EV_PROTOTYPES
    ;; meta funcs
    (ev-version-major-def	()		int)
@@ -196,72 +196,11 @@
    (ev_set_syserr_cb	((* msg-cb-fn))		void)
    (ev_default_loop	(int)			ev-loop*)
    (ev_loop_new		(int)			ev-loop*)
-   (ev_now		(ev-loop*)		ev-tstamp)
-   (ev-loop-destroy	(ev-loop*)		void)
-   (ev-loop-fork	(ev-loop*)		void)
-   (ev_backend		(ev-loop*)		unsigned)
-   (ev_now_update	(ev-loop*)		void)
-   (ev_run		(ev-loop* int)		boolean)
+
+   ;; ev-break & ev-run use case-lambda, so leave outside the c-default-function section.
    (ev_break		(ev-loop* int)		void)
-   (ev_ref		(ev-loop*)		void)
-   (ev_unref		(ev-loop*)		void)
-   ;; TODO
-   #;(ev_once		(ev-loop* int int ev-tstamp (* ev-cb-t) void*) void)
-   ;;;; EV_FEATURE_API
-   (ev_iteration	(ev-loop*)		unsigned)
-   (ev_depth		(ev-loop*)		unsigned)
-   (ev_verify		(ev-loop*)		void)
-   (ev_set_io_collect_interval		(ev-loop* ev-tstamp)	void)
-   (ev_set_timeout_collect_interval	(ev-loop* ev-tstamp)	void)
-   (ev_set_userdata	(ev-loop* void*)	void)
-   (ev_userdata		(ev-loop*)		void*)
-   ;; TODO wrap these threading callback setters.
-   (ev-set-invoke-pending-cb	(ev-loop* (* ev-loop-callback))	void)
-   (ev-set-loop-release-cb	(ev-loop* (* ev-loop-callback) (* ev-loop-callback)) void)
-   (ev_pending_count	(ev-loop*)		unsigned)
-   (ev_invoke_pending	(ev-loop*)		void)
-   (ev_suspend		(ev-loop*)		void)
-   (ev_resume		(ev-loop*)		void)
-   ;; event loop manipulation.
-   (ev-feed-event	(ev-loop* void* int)	void)
-   (ev-feed-fd-event	(ev-loop* int int)	void)
+   (ev_run		(ev-loop* int)		boolean)
    (ev-feed-signal	(int)			void)
-   (ev-feed-signal-event(ev-loop* int)		void)
-   (ev-invoke		(ev-loop* void* int)	void)
-   (ev-clear-pending	(ev-loop* void*)	int)
-   ;; event watcher control.
-   (ev_io_start		(ev-loop* ev-io*)	void)
-   (ev_io_stop		(ev-loop* ev-io*)	void)
-   (ev_timer_start	(ev-loop* ev-timer*)	void)
-   (ev_timer_stop	(ev-loop* ev-timer*)	void)
-   (ev_timer_again	(ev-loop* ev-timer*)	void)
-   (ev_timer_remaining	(ev-loop* ev-timer*)	ev-tstamp)
-   (ev_periodic_start	(ev-loop* ev-periodic*)	void)
-   (ev_periodic_stop	(ev-loop* ev-periodic*)	void)
-   (ev_periodic_again	(ev-loop* ev-periodic*)	void)
-   (ev_signal_start	(ev-loop* ev-signal*)	void)
-   (ev_signal_stop	(ev-loop* ev-signal*)	void)
-   (ev_child_start	(ev-loop* ev-child*)	void)
-   (ev_child_stop	(ev-loop* ev-child*)	void)
-   (ev_stat_start	(ev-loop* ev-stat*)	void)
-   (ev_stat_stop	(ev-loop* ev-stat*)	void)
-   (ev_stat_stat	(ev-loop* ev-stat*)	void)
-   (ev_idle_start	(ev-loop* ev-idle*)	void)
-   (ev_idle_stop	(ev-loop* ev-idle*)	void)
-   (ev_prepare_start	(ev-loop* ev-prepare*)	void)
-   (ev_prepare_stop	(ev-loop* ev-prepare*)	void)
-   (ev_check_start	(ev-loop* ev-check*)	void)
-   (ev_check_stop	(ev-loop* ev-check*)	void)
-   (ev_fork_start	(ev-loop* ev-fork*)	void)
-   (ev_fork_stop	(ev-loop* ev-fork*)	void)
-   (ev_cleanup_start	(ev-loop* ev-cleanup*)	void)
-   (ev_cleanup_stop	(ev-loop* ev-cleanup*)	void)
-   (ev_embed_start	(ev-loop* ev-embed*)	void)
-   (ev_embed_stop	(ev-loop* ev-embed*)	void)
-   (ev_embed_sweep	(ev-loop* ev-embed*)	void)
-   (ev_async_start	(ev-loop* ev-async*)	void)
-   (ev_async_stop	(ev-loop* ev-async*)	void)
-   (ev_async_send	(ev-loop* ev-async*)	void)
    ;;; libev-ffi extensions.
    ;; raw constructors (internal only).
    (make-ev-io		(int int (* ev-io-cb-t))	ev-io*)
@@ -305,6 +244,73 @@
    ;; TODO ev-cb, ev-cb-set
    )
 
+  (c-default-function (ev-loop* (current-loop))
+   (ev-now		()			ev-tstamp)
+   ;; TODO with destroy, maybe the (current-loop) should be invalidated?
+   (ev-loop-destroy	()			void)
+   (ev-loop-fork	()			void)
+   (ev-backend		()			unsigned)
+   (ev-now-update	()			void)
+   (ev-ref		()			void)
+   (ev-unref		()			void)
+   ;; TODO
+   #;(ev-once		(int int ev-tstamp (* ev-cb-t) void*) void)
+   ;;;; EV_FEATURE_API
+   (ev-iteration	()			unsigned)
+   (ev-depth		()			unsigned)
+   (ev-verify		()			void)
+   (ev_set_io_collect_interval		(ev-tstamp)	void)
+   (ev_set_timeout_collect_interval	(ev-tstamp)	void)
+   (ev-set-userdata	(void*)	void)
+   (ev-userdata		()		void*)
+   ;; TODO wrap these threading callback setters.
+   (ev-set-invoke-pending-cb	((* ev-loop-callback))	void)
+   (ev-set-loop-release-cb	((* ev-loop-callback) (* ev-loop-callback)) void)
+   (ev-pending-count	()			unsigned)
+   (ev-invoke-pending	()			void)
+   (ev-suspend		()			void)
+   (ev-resume		()			void)
+   ;; event loop manipulation.
+   (ev-feed-event	(void* int)	void)
+   (ev-feed-fd-event	(int int)	void)
+   (ev-feed-signal-event(int)		void)
+   (ev-invoke		(void* int)	void)
+   (ev-clear-pending	(void*)	int)
+   ;; event watcher control.
+   (ev-io-start		(ev-io*)	void)
+   (ev-io-stop		(ev-io*)	void)
+   (ev-timer-start	(ev-timer*)	void)
+   (ev-timer-stop	(ev-timer*)	void)
+   (ev-timer-again	(ev-timer*)	void)
+   (ev-timer-remaining	(ev-timer*)	ev-tstamp)
+   (ev-periodic-start	(ev-periodic*)	void)
+   (ev-periodic-stop	(ev-periodic*)	void)
+   (ev-periodic-again	(ev-periodic*)	void)
+   (ev-signal-start	(ev-signal*)	void)
+   (ev-signal-stop	(ev-signal*)	void)
+   (ev-child-start	(ev-child*)	void)
+   (ev-child-stop	(ev-child*)	void)
+   (ev-stat-start	(ev-stat*)	void)
+   (ev-stat-stop	(ev-stat*)	void)
+   (ev-stat-stat	(ev-stat*)	void)
+   (ev-idle-start	(ev-idle*)	void)
+   (ev-idle-stop	(ev-idle*)	void)
+   (ev-prepare-start	(ev-prepare*)	void)
+   (ev-prepare-stop	(ev-prepare*)	void)
+   (ev-check-start	(ev-check*)	void)
+   (ev-check-stop	(ev-check*)	void)
+   (ev-fork-start	(ev-fork*)	void)
+   (ev-fork-stop	(ev-fork*)	void)
+   (ev-cleanup-start	(ev-cleanup*)	void)
+   (ev-cleanup-stop	(ev-cleanup*)	void)
+   (ev-embed-start	(ev-embed*)	void)
+   (ev-embed-stop	(ev-embed*)	void)
+   (ev-embed-sweep	(ev-embed*)	void)
+   (ev-async-start	(ev-async*)	void)
+   (ev-async-stop	(ev-async*)	void)
+   (ev-async-send	(ev-async*)	void)
+   )
+
   (enum ev-version
    (EV_VERSION_MAJOR (ev-version-major-def))
    (EV_VERSION_MINOR (ev-version-minor-def)))
@@ -329,18 +335,6 @@
      [()	(ev-loop-new 0)]
      [(flags)	(ev_loop_new flags)]))
 
-  (define ev-now
-    (lambda ()
-      (ev_now (current-loop))))
-
-  (define ev-backend
-    (lambda ()
-      (ev_backend (current-loop))))
-
-  (define ev-now-update
-    (lambda ()
-      (ev_now_update (current-loop))))
-
   (define ev-run
     (case-lambda
      [()	(ev-run 0)]
@@ -351,185 +345,13 @@
      [()	(ev-break EVBREAK_ONE)]
      [(how)	(ev_break (current-loop) how)]))
 
-  (define ev-ref
-    (lambda ()
-      (ev_ref (current-loop))))
-
-  (define ev-unref
-    (lambda ()
-      (ev_unref (current-loop))))
-
-  (define ev-iteration
-    (lambda ()
-      (ev_iteration (current-loop))))
-
-  (define ev-depth
-    (lambda ()
-      (ev_depth (current-loop))))
-
-  (define ev-verify
-    (lambda ()
-      (ev_verify (current-loop))))
-
   (define ev-set-io-collect-interval
     (lambda (interval)
-      (ev_set_io_collect_interval (current-loop) (->double interval))))
+      (ev_set_io_collect_interval (->double interval))))
 
   (define ev-set-timeout-collect-interval
     (lambda (interval)
-      (ev_set_timeout_collect_interval (current-loop) (->double interval))))
-
-  (define ev-set-userdata
-    (lambda (data)
-      (ev_set_userdata (current-loop) data)))
-
-  (define ev-userdata
-    (lambda ()
-      (ev_userdata (current-loop))))
-
-  (define ev-pending-count
-    (lambda ()
-      (ev_pending_count (current-loop))))
-
-  (define ev-invoke-pending
-    (lambda ()
-      (ev_invoke_pending (current-loop))))
-
-  (define ev-suspend
-    (lambda ()
-      (ev_suspend (current-loop))))
-
-  (define ev-resume
-    (lambda ()
-      (ev_resume (current-loop))))
-
-  (define ev-io-start
-    (lambda (w)
-      (ev_io_start (current-loop) w)))
-
-  (define ev-io-stop
-    (lambda (w)
-      (ev_io_stop (current-loop) w)))
-
-  (define ev-timer-start
-    (lambda (w)
-      (ev_timer_start (current-loop) w)))
-
-  (define ev-timer-stop
-    (lambda (w)
-      (ev_timer_stop (current-loop) w)))
-
-  (define ev-timer-again
-    (lambda (w)
-      (ev_timer_again (current-loop) w)))
-
-  (define ev-timer-remaining
-    (lambda (w)
-      (ev_timer_remaining (current-loop) w)))
-
-  (define ev-periodic-start
-    (lambda (w)
-      (ev_periodic_start (current-loop) w)))
-
-  (define ev-periodic-stop
-    (lambda (w)
-      (ev_periodic_stop (current-loop) w)))
-
-  (define ev-periodic-again
-    (lambda (w)
-      (ev_periodic_again (current-loop) w)))
-
-  (define ev-signal-start
-    (lambda (w)
-      (ev_signal_start (current-loop) w)))
-
-  (define ev-signal-stop
-    (lambda (w)
-      (ev_signal_stop (current-loop) w)))
-
-  (define ev-child-start
-    (lambda (w)
-      (ev_child_start (current-loop) w)))
-
-  (define ev-child-stop
-    (lambda (w)
-      (ev_child_stop (current-loop) w)))
-
-  (define ev-stat-start
-    (lambda (w)
-      (ev_stat_start (current-loop) w)))
-
-  (define ev-stat-stop
-    (lambda (w)
-      (ev_stat_stop (current-loop) w)))
-
-  (define ev-stat-stat
-    (lambda (w)
-      (ev_stat_stat (current-loop) w)))
-
-  (define ev-idle-start
-    (lambda (w)
-      (ev_idle_start (current-loop) w)))
-
-  (define ev-idle-stop
-    (lambda (w)
-      (ev_idle_stop (current-loop) w)))
-
-  (define ev-prepare-start
-    (lambda (w)
-      (ev_prepare_start (current-loop) w)))
-
-  (define ev-prepare-stop
-    (lambda (w)
-      (ev_prepare_stop (current-loop) w)))
-
-  (define ev-check-start
-    (lambda (w)
-      (ev_check_start (current-loop) w)))
-
-  (define ev-check-stop
-    (lambda (w)
-      (ev_check_stop (current-loop) w)))
-
-  (define ev-fork-start
-    (lambda (w)
-      (ev_fork_start (current-loop) w)))
-
-  (define ev-fork-stop
-    (lambda (w)
-      (ev_fork_stop (current-loop) w)))
-
-  (define ev-cleanup-start
-    (lambda (w)
-      (ev_cleanup_start (current-loop) w)))
-
-  (define ev-cleanup-stop
-    (lambda (w)
-      (ev_cleanup_stop (current-loop) w)))
-
-  (define ev-embed-start
-    (lambda (w)
-      (ev_embed_start (current-loop) w)))
-
-  (define ev-embed-stop
-    (lambda (w)
-      (ev_embed_stop (current-loop) w)))
-
-  (define ev-embed-sweep
-    (lambda (w)
-      (ev_embed_sweep (current-loop) w)))
-
-  (define ev-async-start
-    (lambda (w)
-      (ev_async_start (current-loop) w)))
-
-  (define ev-async-stop
-    (lambda (w)
-      (ev_async_stop (current-loop) w)))
-
-  (define ev-async-send
-    (lambda (w)
-      (ev_async_send (current-loop) w)))
+      (ev_set_timeout_collect_interval (->double interval))))
 
   (define-syntax make-cb
     (syntax-rules ()
