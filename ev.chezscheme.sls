@@ -75,53 +75,53 @@
     (load-shared-object (locate-library-object "ev/libchez-ffi.so")))
 
   (c-bitmap evmask
-   (EV_UNDEF	#xFFFFFFFF)
-   (EV_READ	#x01)
-   (EV_WRITE	#x02)
-   (EV__IOFDSET	#x80)
-   (EV_TIMER	#x00000100)
-   (EV_PERIODIC	#x00000200)
-   (EV_SIGNAL	#x00000400)
-   (EV_CHILD	#x00000800)
-   (EV_STAT	#x00001000)
-   (EV_IDLE	#x00002000)
-   (EV_PREPARE	#x00004000)
-   (EV_CHECK	#x00008000)
-   (EV_EMBED	#x00010000)
-   (EV_FORK	#x00020000)
-   (EV_CLEANUP	#x00040000)
-   (EV_ASYNC	#x00080000)
-   (EV_CUSTOM	#x01000000)
-   (EV_ERROR	#x80000000))
+   (UNDEF		#xFFFFFFFF)
+   (READ		#x01)
+   (WRITE		#x02)
+   (_IOFDSET		#x80)
+   (TIMER		#x00000100)
+   (PERIODIC		#x00000200)
+   (SIGNAL		#x00000400)
+   (CHILD		#x00000800)
+   (STAT		#x00001000)
+   (IDLE		#x00002000)
+   (PREPARE		#x00004000)
+   (CHECK		#x00008000)
+   (EMBED		#x00010000)
+   (FORK		#x00020000)
+   (CLEANUP		#x00040000)
+   (ASYNC		#x00080000)
+   (CUSTOM		#x01000000)
+   (ERROR		#x80000000))
   (define EV_NONE	#x00)
-  (define EV_IO		(evmask 'EV_READ))
+  (define EV_IO		(evmask 'READ))
 
   (c-bitmap evflag
-   (EVFLAG_NOENV	#x01000000)
-   (EVFLAG_FORKCHECK	#x02000000)
-   (EVFLAG_NOINOTIFY	#x00100000)
-   (EVFLAG_SIGNALFD	#x00200000)
-   (EVFLAG_NOSIGMASK	#x00400000))
+   (NOENV		#x01000000)
+   (FORKCHECK		#x02000000)
+   (NOINOTIFY		#x00100000)
+   (SIGNALFD		#x00200000)
+   (NOSIGMASK		#x00400000))
   (define EVFLAG_AUTO	#x00000000)
 
   (c-bitmap evbackend
-   (EVBACKEND_MASK	#x0000FFFF)
-   (EVBACKEND_SELECT	#x00000001)
-   (EVBACKEND_POLL	#x00000002)
-   (EVBACKEND_EPOLL	#x00000004)
-   (EVBACKEND_KQUEUE	#x00000008)
-   (EVBACKEND_DEVPOLL	#x00000010)
-   (EVBACKEND_PORT	#x00000020)
-   (EVBACKEND_ALL	#x0000003F))
+   (MASK		#x0000FFFF)
+   (SELECT		#x00000001)
+   (POLL		#x00000002)
+   (EPOLL		#x00000004)
+   (KQUEUE		#x00000008)
+   (DEVPOLL		#x00000010)
+   (PORT		#x00000020)
+   (ALL			#x0000003F))
 
   (c-enum evrun
-   (EVRUN_NOWAIT	1)
-   (EVRUN_ONCE		2))
+   (NOWAIT		1)
+   (ONCE		2))
 
   (c-enum evbreak
-   (EVBREAK_CANCEL	0)
-   (EVBREAK_ONE		1)
-   (EVBREAK_ALL		2))
+   (CANCEL		0)
+   (ONE			1)
+   (ALL			2))
 
   (define-ftype ev-loop* void*)
 
@@ -335,7 +335,7 @@
 
   (define ev-break
     (case-lambda
-     [()	(ev-break (evbreak 'EVBREAK_ONE))]
+     [()	(ev-break (evbreak 'ONE))]
      [(how)	(ev_break (current-loop) how)]))
 
   (define ev-set-io-collect-interval
