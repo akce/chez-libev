@@ -18,7 +18,7 @@
 (define stdinw
   (ev-io 0 (evmask 'READ)
     (lambda (w rev)
-      (display "key activity ")(display rev)(newline)
+      (display "key pressed: ")(display (read-char))(newline)
       (ev-io-stop w)
       (ev-break (evbreak 'ALL)))))
 
