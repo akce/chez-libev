@@ -3,23 +3,13 @@
 ;; SPDX-License-Identifier: Unlicense
 (library (ev)
   (export
+    ;; enums, bitmaps and IDs.
    EV_VERSION_MAJOR EV_VERSION_MINOR
-
-   ;; event masks.
-   EV_UNDEF EV_NONE EV_READ EV_WRITE EV__IOFDSET EV_IO EV_TIMER EV_PERIODIC EV_SIGNAL EV_CHILD EV_STAT EV_IDLE EV_PREPARE EV_CHECK EV_EMBED EV_FORK EV_CLEANUP EV_ASYNC EV_CUSTOM EV_ERROR
-
-   ;; evflags.
-   EVFLAG_AUTO EVFLAG_NOENV EVFLAG_FORKCHECK EVFLAG_NOINOTIFY EVFLAG_SIGNALFD EVFLAG_NOSIGMASK
-
-   ;; evbackend
-   EVBACKEND_SELECT EVBACKEND_POLL EVBACKEND_EPOLL EVBACKEND_KQUEUE EVBACKEND_DEVPOLL EVBACKEND_PORT EVBACKEND_ALL EVBACKEND_MASK
-
-   ;; evrun
-   EVRUN_NOWAIT EVRUN_ONCE
-
-   ;; evbreak
-   EVBREAK_CANCEL EVBREAK_ONE EVBREAK_ALL
-
+   evmask EV_NONE EV_IO
+   evflag EVFLAG_AUTO
+   evbackend
+   evrun
+   evbreak
    EV_DEFAULT
 
    ;; parameter.
@@ -84,13 +74,11 @@
   (define load-libev-ffi
     (load-shared-object (locate-library-object "ev/libchez-ffi.so")))
 
-  (enum	event-masks
+  (c-bitmap evmask
    (EV_UNDEF	#xFFFFFFFF)
-   (EV_NONE	#x00)
    (EV_READ	#x01)
    (EV_WRITE	#x02)
    (EV__IOFDSET	#x80)
-   (EV_IO	EV_READ)
    (EV_TIMER	#x00000100)
    (EV_PERIODIC	#x00000200)
    (EV_SIGNAL	#x00000400)
@@ -105,30 +93,32 @@
    (EV_ASYNC	#x00080000)
    (EV_CUSTOM	#x01000000)
    (EV_ERROR	#x80000000))
+  (define EV_NONE	#x00)
+  (define EV_IO		(evmask 'EV_READ))
 
-  (enum evflag
-   (EVFLAG_AUTO		#x00000000)
+  (c-bitmap evflag
    (EVFLAG_NOENV	#x01000000)
    (EVFLAG_FORKCHECK	#x02000000)
    (EVFLAG_NOINOTIFY	#x00100000)
    (EVFLAG_SIGNALFD	#x00200000)
    (EVFLAG_NOSIGMASK	#x00400000))
+  (define EVFLAG_AUTO	#x00000000)
 
-  (enum evbackend
+  (c-bitmap evbackend
+   (EVBACKEND_MASK	#x0000FFFF)
    (EVBACKEND_SELECT	#x00000001)
    (EVBACKEND_POLL	#x00000002)
    (EVBACKEND_EPOLL	#x00000004)
    (EVBACKEND_KQUEUE	#x00000008)
    (EVBACKEND_DEVPOLL	#x00000010)
    (EVBACKEND_PORT	#x00000020)
-   (EVBACKEND_ALL	#x0000003F)
-   (EVBACKEND_MASK	#x0000FFFF))
+   (EVBACKEND_ALL	#x0000003F))
 
-  (enum evrun
+  (c-enum evrun
    (EVRUN_NOWAIT	1)
    (EVRUN_ONCE		2))
 
-  (enum evbreak
+  (c-enum evbreak
    (EVBREAK_CANCEL	0)
    (EVBREAK_ONE		1)
    (EVBREAK_ALL		2))
@@ -244,6 +234,17 @@
    ;; TODO ev-cb, ev-cb-set
    )
 
+  (define ev-default-loop
+    (case-lambda
+     [()	(ev-default-loop 0)]
+     [(flags)	(ev_default_loop flags)]))
+
+  (define EV_DEFAULT (ev-default-loop))
+
+  ;; [parameter] current-loop
+  (define current-loop
+    (make-parameter EV_DEFAULT))
+
   (c-default-function (ev-loop* (current-loop))
    (ev-now		()			ev-tstamp)
    ;; TODO with destroy, maybe the (current-loop) should be invalidated?
@@ -311,9 +312,8 @@
    (ev-async-send	(ev-async*)	void)
    )
 
-  (enum ev-version
-   (EV_VERSION_MAJOR (ev-version-major-def))
-   (EV_VERSION_MINOR (ev-version-minor-def)))
+  (define EV_VERSION_MAJOR (ev-version-major-def))
+  (define EV_VERSION_MINOR (ev-version-minor-def))
 
   (define ev-sleep
     (lambda (len)
@@ -322,13 +322,6 @@
   ;; TODO
   ;; (define ev-set-allocator)
   ;; (define ev-set-syserr-cb)
-
-  (define ev-default-loop
-    (case-lambda
-     [()	(ev-default-loop 0)]
-     [(flags)	(ev_default_loop flags)]))
-
-  (define EV_DEFAULT (ev-default-loop))
 
   (define ev-loop-new
     (case-lambda
@@ -342,7 +335,7 @@
 
   (define ev-break
     (case-lambda
-     [()	(ev-break EVBREAK_ONE)]
+     [()	(ev-break (evbreak 'EVBREAK_ONE))]
      [(how)	(ev_break (current-loop) how)]))
 
   (define ev-set-io-collect-interval
@@ -432,10 +425,6 @@
   (define ev-periodic-interval-set
     (lambda (periodic interval)
       (ev_periodic_interval_set periodic (->double interval))))
-
-  ;; [parameter] current-loop
-  (define current-loop
-    (make-parameter EV_DEFAULT))
 
   ;; [procedure] ->double: ensures number is converted to a double if necessary.
   (define ->double

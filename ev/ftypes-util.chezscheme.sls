@@ -4,7 +4,7 @@
 (library (ev ftypes-util)
   (export
    c-function c-default-function
-   enum
+   c-bitmap c-enum
    locate-library-object)
   (import
    (chezscheme))
@@ -71,10 +71,133 @@
                     (lambda args
                       (apply ffi-func instance args)))) ...))])))
 
-  (define-syntax enum
-    (syntax-rules ()
-      [(_ name (symbol value) ...)
-       (begin (define symbol value) ...)]))
+  ;; parse-enum-bit-defs: internal function.
+  ;; parses enumdefs (for c-enum) and bitdefs (for c-bitmap).
+  ;;
+  ;; ebdefs is expected to be a mixed list of symbols / (symbol . id-number)...
+  ;;
+  ;; Return a list containing (syntax symbol) . (syntax id-number) pairs, suitable for use in with-syntax.
+  (meta define parse-enum-bit-defs
+    (lambda (ebdefs)
+      (let loop ([i 0] [ds ebdefs])
+        (cond
+         [(null? ds) #'()]
+         [else
+          (syntax-case (car ds) ()
+            [(id val)
+             (cons (list #'id #'val) (loop (fx+ (syntax->datum #'val) 1) (cdr ds)))]
+            [id
+             (identifier? #'id)
+             (cons (list #'id (datum->syntax #'id i)) (loop (fx+ i 1) (cdr ds)))])]))))
+
+  ;; [syntax] c-enum: creates a function representing the enumeration.
+  ;; c-enum will create a function called 'name'.
+  ;; enum values are assumed to start from 0 and increase by one from the previous value unless a value is provided.
+  ;;
+  ;; Without args, the function will return an assoc list of symbol/value pairs.
+  ;;
+  ;; With one arg, the function will check the type of the arg and return a value accordingly.
+  ;; ie, return an identifier (symbol) when arg is a number, and a number if the arg is a symbol.
+  ;;
+  ;; Error conditions are raised for invalid or unknown input values.
+  ;;
+  ;; eg, a c-style enum
+  ;;    typedef enum { a, b = 3, c, } name;
+  ;;
+  ;; could be represented as:
+  ;; > (c-enum name a (b 3) c)
+  ;; > name
+  ;; #<procedure name>
+  ;; > (name)
+  ;; ((a . 0) (b . 3) (c . 4))
+  ;; > (name 3)
+  ;; b
+  ;; > (name 'c)
+  ;; 4
+  ;; > (name 2)
+  ;; Exception in name: identifier not defined for value 2 in enum
+  ;; Type (debug) to enter the debugger.
+  ;; > (name 'j)
+  ;; Exception in name: value not defined for identifier j in enum
+  ;; Type (debug) to enter the debugger.
+  (define-syntax c-enum
+    (lambda (stx)
+      (syntax-case stx ()
+        [(_ name enumdef1 enumdef* ...)
+         (with-syntax
+          ([((esym eid) ...) (parse-enum-bit-defs #'(enumdef1 enumdef* ...))])
+          #'(define name
+              (case-lambda
+               [()
+                '((esym . eid) ...)]
+               [(x)
+                (name
+                 (cond
+                  [(symbol? x)  'get-value]
+                  [(number? x)  'get-id]
+                  [else x])
+                 x)]
+               [(cmd arg)
+                (case cmd
+                  [(get-value)
+                   (case arg
+                     [(esym) eid] ...
+                     [else (error (syntax->datum #'name) (format #f "value not defined for identifier ~s in enum" arg))])]
+                  [(get-id)
+                   (case arg
+                     [(eid) 'esym] ...
+                     [else (error (syntax->datum #'name) (format #f "identifier not defined for value ~d in enum" arg))])]
+                  [else
+                   (error (syntax->datum #'name) (format #f "unknown enum command ~s" cmd))])])))])))
+
+  ;; [syntax] c-bitmap: define a bitmap enumeration.
+  ;; Behaves as c-enum, except each field defines a bit. Querying for symbols returns a list.
+  ;;
+  ;; eg,
+  ;; > (c-bitmap flags A B C D)
+  ;; > (flags 'A)
+  ;; 0
+  ;; > (flags 'B)
+  ;; 1
+  ;; > (flags 'C)
+  ;; 2
+  ;; > (flags #b110)
+  ;; (B C)
+  ;; > (flags #b10)
+  ;; (B)
+  (define-syntax c-bitmap
+    (lambda (stx)
+      (syntax-case stx ()
+        [(_ name bitdef1 bitdef* ...)
+         (with-syntax
+          ([((esym eid) ...) (parse-enum-bit-defs #'(bitdef1 bitdef* ...))])
+          #'(define name
+              (case-lambda
+               [()
+                '((esym . eid) ...)]
+               [(x)
+                (name
+                 (cond
+                  [(symbol? x)  'get-value]
+                  [(number? x)  'get-symbols]
+                  [else x])
+                 x)]
+               [(cmd arg)
+                (case cmd
+                  [(get-value)
+                   (case arg
+                     [(esym) eid] ...
+                     [else (error (syntax->datum #'name) (format #f "value not defined for identifier ~s in bitmap" arg))])]
+                  [(get-symbols)
+                   (let loop ([ids '(eid ...)] [syms '(esym ...)])
+                     (cond
+                      [(null? ids) '()]
+                      [else
+                       (if (fx=? (bitwise-and arg (car ids)) (car ids))
+                           (cons (car syms) (loop (cdr ids) (cdr syms)))
+                           (loop (cdr ids) (cdr syms)))]))]
+                  [else
+                   (error (syntax->datum #'name) (format #f "unknown bitmap command ~s" cmd))])])))])))
 
   ;; [procedure] locate-library-object: find first instance of filename within (library-directories) object directories.
   ;; Returns full path of located file, including the filename itself. filename only if not found.
