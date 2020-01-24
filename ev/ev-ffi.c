@@ -1,7 +1,8 @@
 /*
  * Macros from ev.h converted to, or embedded in, C functions useful for FFI bindings.
  *
- * Copyright (C) 2019 Akce. Released under the MIT license.
+ * Written by Akce 2019.
+ * SPDX-License-Identifier: Unlicense
  */
 
 /* Allow site to adjust configurables in ev.h by defining CONFIG_H */

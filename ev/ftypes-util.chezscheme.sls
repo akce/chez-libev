@@ -1,5 +1,6 @@
 ;; chez scheme ftypes FFI util functions.
-;; Released into the public domain.
+;; Written by Akce 2019, 2020.
+;; SPDX-License-Identifier: Unlicense
 (library (ev ftypes-util)
   (export
    c_funcs

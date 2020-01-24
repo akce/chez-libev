@@ -1,5 +1,6 @@
 ;; libev bindings for chez scheme.
-;; Copyright (C) 2019 Akce. Released under the MIT license.
+;; Written by Akce 2019, 2020.
+;; SPDX-License-Identifier: Unlicense
 (library (ev)
   (export
    EV_VERSION_MAJOR EV_VERSION_MINOR
