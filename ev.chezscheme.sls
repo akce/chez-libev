@@ -76,12 +76,12 @@
    ev-async ev-async-pending-get)
   (import
    (chezscheme)
-   (ftypes-util))
+   (ev ftypes-util))
 
   (define load-libev
     (load-shared-object "libev.so.4"))
   (define load-libev-ffi
-    (load-shared-object (locate-library-object "libchez-ev.so")))
+    (load-shared-object (locate-library-object "ev/libchez-ffi.so")))
 
   (enum	event-masks
    (EV_UNDEF	#xFFFFFFFF)

@@ -1,5 +1,6 @@
 # chez-libev Makefile.
-# Placed in the public domain.
+# Written by Akce 2019, 2020.
+# SPDX-License-Identifier: Unlicense
 
 # Provide a CONFIG_H to tailor header to libev as installed at site.
 # For now that should probably be limited to EV_COMMON as ev.ss assumes the default libev config.
@@ -8,7 +9,7 @@
 
 # Install destination directory. This should be an object directory contained in (library-directories).
 # eg, set in CHEZSCHEMELIBDIRS environment variable.
-DEST = ~/lib
+LIBDIR = ~/lib
 
 # Path to chez scheme executable.
 SCHEME = /usr/bin/scheme
@@ -25,29 +26,46 @@ LIBFLAGS = -shared
 
 ## Should be no need to edit anything below here.
 
-COBJS = ev-ffi.o
+PROJDIR = ev
 
-# SOBJS need to be in order of dependencies first, library last so that they can be joined for the distribution file.
-SOBJS = ftypes-util.so ev.so
+LIBOBJ = $(PROJDIR)/ev-ffi.o
+LIBSO = $(PROJDIR)/libchez-ffi.so
 
-BINS = libchez-ev.so ev.chezscheme.so
+# Source files for the library subdirectory.
+SUBSRC = $(PROJDIR)/ftypes-util.chezscheme.sls
+# Source objects for the library subdirectory.
+SUBOBJ = $(PROJDIR)/ftypes-util.chezscheme.so
 
-all: $(BINS)
+# Root source file.
+ROOTSRC = ev.chezscheme.sls
+# Root shared object.
+ROOTOBJ = ev.chezscheme.so
 
-libchez-ev.so: $(COBJS)
+all: $(LIBSO) $(SUBOBJ) $(ROOTOBJ)
+
+$(LIBSO): $(LIBOBJ)
 	$(CC) $(LIBFLAGS) $^ -o $@
-
-ev.chezscheme.so: $(SOBJS)
-	cat $^ > $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) $< -o $@
 
-%.so: %.ss
+%.so: %.sls
 	echo '(reset-handler abort) (compile-library "'$<'")' | $(SCHEME) $(SFLAGS)
 
-install: all
-	$(INSTALL) -D -t $(DEST) $(BINS)
+# install-lib is always required, installations then need to decide what combination of src/so they want.
+# Default install target is for everything.
+install: install-lib install-so install-src
+
+install-lib: all
+	$(INSTALL) -D -p -t $(LIBDIR)/$(PROJDIR) $(LIBSO)
+
+install-so: all
+	$(INSTALL) -D -p -t $(LIBDIR)/$(PROJDIR) $(SUBOBJ)
+	$(INSTALL) -D -p -t $(LIBDIR) $(ROOTOBJ)
+
+install-src: all
+	$(INSTALL) -D -p -t $(LIBDIR)/$(PROJDIR) $(SUBSRC)
+	$(INSTALL) -D -p -t $(LIBDIR) $(ROOTSRC)
 
 clean:
-	rm -f $(COBJS) $(SOBJS) $(BINS)
+	$(RM) $(LIBOBJ) $(LIBSO) $(ROOTOBJ) $(SUBOBJ)

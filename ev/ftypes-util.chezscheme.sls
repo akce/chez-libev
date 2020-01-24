@@ -1,6 +1,6 @@
 ;; chez scheme ftypes FFI util functions.
 ;; Released into the public domain.
-(library (ftypes-util)
+(library (ev ftypes-util)
   (export
    c_funcs
    enum
