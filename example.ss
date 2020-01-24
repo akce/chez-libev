@@ -7,7 +7,7 @@
  (rnrs))
 
 (define tw
-  (ev-timer 1 5.
+  (ev-timer 1 5
     (let ([j 0])
       (lambda (timer i)
         (set! j (+ 1 j))
