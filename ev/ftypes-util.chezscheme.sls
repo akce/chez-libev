@@ -85,10 +85,10 @@
          [else
           (syntax-case (car ds) ()
             [(id val)
-             (cons (list #'id #'val) (loop (fx+ (syntax->datum #'val) 1) (cdr ds)))]
+             (cons (list #'id #'val) (loop (+ (syntax->datum #'val) 1) (cdr ds)))]
             [id
              (identifier? #'id)
-             (cons (list #'id (datum->syntax #'id i)) (loop (fx+ i 1) (cdr ds)))])]))))
+             (cons (list #'id (datum->syntax #'id i)) (loop (+ i 1) (cdr ds)))])]))))
 
   ;; [syntax] c-enum: creates a function representing the enumeration.
   ;; c-enum will create a function called 'name'.
@@ -205,7 +205,7 @@
                      (cond
                       [(null? ids) '()]
                       [else
-                       (if (fx=? (bitwise-and arg (car ids)) (car ids))
+                       (if (= (bitwise-and arg (car ids)) (car ids))
                            (cons (car syms) (loop (cdr ids) (cdr syms)))
                            (loop (cdr ids) (cdr syms)))]))]
                   [else
