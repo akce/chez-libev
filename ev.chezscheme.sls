@@ -1,5 +1,5 @@
-;; libev bindings for chez scheme.
-;; Written by Akce 2019, 2020.
+;; libev bindings for Chez scheme.
+;; Written by Jerry 2019-2021.
 ;; SPDX-License-Identifier: Unlicense
 (library (ev)
   (export
@@ -181,7 +181,7 @@
    (ev-embeddable-backends	()		unsigned)
    ;; time related
    (ev-time			()		ev-tstamp)
-   (ev_sleep			(ev-tstamp)	void)
+   (ev-sleep			(ev-tstamp)	void)
    (ev_set_allocator	((* realloc-fn))	void)
    (ev_set_syserr_cb	((* msg-cb-fn))		void)
    (ev_default_loop	(int)			ev-loop*)
@@ -210,11 +210,11 @@
    (ev-io-fd-get		(ev-io*)	int)
    (ev-io-events-get		(ev-io*)	int)
    (ev-timer-repeat-get		(ev-timer*)	ev-tstamp)
-   (ev_timer_repeat_set		(ev-timer* ev-tstamp) void)
+   (ev-timer-repeat-set		(ev-timer* ev-tstamp) void)
    (ev-periodic-offset-get	(ev-periodic*) ev-tstamp)
-   (ev_periodic_offset_set	(ev-periodic* ev-tstamp) void)
+   (ev-periodic-offset-set	(ev-periodic* ev-tstamp) void)
    (ev-periodic-interval-get	(ev-periodic*) ev-tstamp)
-   (ev_periodic_interval_set	(ev-periodic* ev-tstamp) void)
+   (ev-periodic-interval-set	(ev-periodic* ev-tstamp) void)
    (ev-periodic-rcb-get		(ev-periodic*) (* ev-periodic-rcb-t))
    (ev-periodic-rcb-set		(ev-periodic* (* ev-periodic-rcb-t)) void)
    (ev-signal-signum-get	(ev-signal*)	int)
@@ -260,8 +260,8 @@
    (ev-iteration	()			unsigned)
    (ev-depth		()			unsigned)
    (ev-verify		()			void)
-   (ev_set_io_collect_interval		(ev-tstamp)	void)
-   (ev_set_timeout_collect_interval	(ev-tstamp)	void)
+   (ev-set-io-collect-interval		(ev-tstamp)	void)
+   (ev-set-timeout-collect-interval	(ev-tstamp)	void)
    (ev-set-userdata	(void*)	void)
    (ev-userdata		()		void*)
    ;; TODO wrap these threading callback setters.
@@ -315,10 +315,6 @@
   (define EV_VERSION_MAJOR (ev-version-major-def))
   (define EV_VERSION_MINOR (ev-version-minor-def))
 
-  (define ev-sleep
-    (lambda (len)
-      (ev_sleep (->double len))))
-
   ;; TODO
   ;; (define ev-set-allocator)
   ;; (define ev-set-syserr-cb)
@@ -338,97 +334,45 @@
      [()	(ev-break (evbreak 'ONE))]
      [(how)	(ev_break (current-loop) how)]))
 
-  (define ev-set-io-collect-interval
-    (lambda (interval)
-      (ev_set_io_collect_interval (->double interval))))
+  (define-syntax define-watcher
+    (lambda (x)
+      (define make-id-syntax
+        (lambda (ctx . s-args)
+          (datum->syntax
+            ctx
+            (string->symbol
+              (apply string-append
+                     (map (lambda (s)
+                            (if (string? s)
+                                s
+                                (symbol->string (syntax->datum s)))) s-args))))))
+      (syntax-case x ()
+        [(k watcher-name args ...)
+         (with-syntax ([make-watcher-func (make-id-syntax #'k "make-" #'watcher-name)]
+                       [start-watcher-func (make-id-syntax #'k #'watcher-name "-start")]
+                       [cb-func-type (make-id-syntax #'k #'watcher-name "-cb-t")])
+           #'(define watcher-name
+               (lambda (args ... callback-func)
+                 (let* ([fp-callback (make-ftype-pointer
+                                       cb-func-type
+                                       (lambda (loop w rev)
+                                         (parameterize ([current-loop loop])
+                                           (callback-func w rev))))]
+                        [watcher (make-watcher-func args ... fp-callback)])
+                   (start-watcher-func watcher)
+                   watcher))))])))
 
-  (define ev-set-timeout-collect-interval
-    (lambda (interval)
-      (ev_set_timeout_collect_interval (->double interval))))
-
-  (define-syntax make-cb
-    (syntax-rules ()
-      [(_ cb-t cb)
-       (make-ftype-pointer cb-t
-         (lambda (loop w rev)
-           (parameterize ([current-loop loop])
-             (cb w rev))))]))
-
-  ;; [syntax] sar: start and return the watcher.
-  (define-syntax sar
-    (syntax-rules ()
-      [(_ func w)
-       (let ([x w])
-         (func x)
-         x)]))
-
-  (define ev-io
-    (lambda (fd events cb)
-      (sar ev-io-start (make-ev-io fd events (make-cb ev-io-cb-t cb)))))
-
-  (define ev-timer
-    (lambda (after repeat cb)
-      (sar ev-timer-start (make-ev-timer (->double after) (->double repeat) (make-cb ev-timer-cb-t cb)))))
-
-  (define ev-periodic
-    (lambda (offset interval rcb cb)
-      (sar ev-periodic-start (make-ev-periodic (->double offset) (->double interval) (make-ftype-pointer ev-periodic-rcb-t rcb) (make-cb ev-periodic-cb-t cb)))))
-
-  (define ev-signal
-    (lambda (signum cb)
-      (sar ev-signal-start (make-ev-signal signum (make-cb ev-signal-cb-t cb)))))
-
-  (define ev-child
-    (lambda (pid trace cb)
-      (sar ev-child-start (make-ev-child pid trace (make-cb ev-child-cb-t cb)))))
-
-  (define ev-stat
-    (lambda (path interval cb)
-      (sar ev-stat-start (make-ev-stat path (->double interval) (make-cb ev-stat-cb-t cb)))))
-
-  (define ev-idle
-    (lambda (cb)
-      (sar ev-idle-start (make-ev-idle (make-cb ev-idle-cb-t cb)))))
-
-  (define ev-prepare
-    (lambda (cb)
-      (sar ev-prepare-start (make-ev-prepare (make-cb ev-prepare-cb-t cb)))))
-
-  (define ev-check
-    (lambda (cb)
-      (sar ev-check-start (make-ev-check (make-cb ev-check-cb-t cb)))))
-
-  (define ev-embed
-    (lambda (other cb)
-      (sar ev-embed-start (make-ev-embed other (make-cb ev-embed-cb-t cb)))))
-
-  (define ev-fork
-    (lambda (cb)
-      (sar ev-fork-start (make-ev-fork (make-cb ev-fork-cb-t cb)))))
-
-  (define ev-cleanup
-    (lambda (cb)
-      (sar ev-cleanup-start (make-ev-cleanup (make-cb ev-cleanup-cb-t cb)))))
-
-  (define ev-async
-    (lambda (cb)
-      (sar ev-async-start (make-ev-async (make-cb ev-async-cb-t cb)))))
-
-  (define ev-timer-repeat-set
-    (lambda (timer repeat)
-      (ev_timer_repeat_set timer (->double repeat))))
-
-  (define ev-periodic-offset-set
-    (lambda (periodic offset)
-      (ev_periodic_offset_set periodic (->double offset))))
-
-  (define ev-periodic-interval-set
-    (lambda (periodic interval)
-      (ev_periodic_interval_set periodic (->double interval))))
-
-  ;; [procedure] ->double: ensures number is converted to a double if necessary.
-  (define ->double
-    (lambda (num)
-      (cond
-       [(fixnum? num) (fixnum->flonum num)]
-       [else num]))))
+  (define-watcher ev-io fd events)
+  (define-watcher ev-timer after repeat)
+  (define-watcher ev-periodic offset interval rcb)
+  (define-watcher ev-signal signum)
+  (define-watcher ev-child pid trace)
+  (define-watcher ev-stat path interval)
+  (define-watcher ev-idle)
+  (define-watcher ev-prepare)
+  (define-watcher ev-check)
+  (define-watcher ev-embed other)
+  (define-watcher ev-fork)
+  (define-watcher ev-cleanup)
+  (define-watcher ev-async)
+  )

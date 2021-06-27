@@ -1,5 +1,5 @@
 ;; chez scheme ftypes FFI util functions.
-;; Written by Akce 2019, 2020.
+;; Written by Jerry 2019-2021.
 ;; SPDX-License-Identifier: Unlicense
 (library (ev ftypes-util)
   (export
@@ -20,6 +20,28 @@
                             #\_ c))
                       (symbol->string sym))))
 
+  (meta define has-ev-tstamp?
+        (lambda (syms)
+          (find
+            (lambda (s)
+              (eq? s 'ev-tstamp))
+            (syntax->datum syms))))
+
+  (meta define make-ev-tstamp-args
+        (lambda (syms)
+          (let ([ds (syntax->list syms)])
+            (map
+              (lambda (a v)
+                (list
+                  a
+                  v
+                  (if (eq? 'ev-tstamp (syntax->datum a))
+                      #`(if (flonum? #,v)
+                            #,v
+                            (fixnum->flonum #,v))
+                      v)))
+              ds (generate-temporaries ds)))))
+
   ;; [syntax] c-function: converts scheme-like function names to c-like function names before passing to foreign-procedure.
   ;; ie, word separating hyphens are converted to underscores for c.
   ;; eg,
@@ -31,15 +53,25 @@
   (define-syntax c-function
     (lambda (stx)
       (syntax-case stx ()
-        [(_ (name args return) ...)
-         (with-syntax ([(function-string ...)
-                        (map (lambda (n)
-                               (datum->syntax n
-                                 (symbol->function-name-string (syntax->datum n))))
-                             #'(name ...))])
-            #'(begin
-                (define name
-                  (foreign-procedure function-string args return)) ...))])))
+        [(_ (name args return))
+         (has-ev-tstamp? #'args)
+         (with-syntax ([function-string
+                         (datum->syntax #'name
+                                        (symbol->function-name-string (syntax->datum #'name)))]
+                       [((arg-type arg-name arg-call) ...) (make-ev-tstamp-args #'args)])
+            #'(define name
+                (lambda (arg-name ...)
+                  (let ([fp (foreign-procedure function-string (arg-type ...) return)])
+                    (fp arg-call ...)))))]
+        [(_ (name args return))
+         (with-syntax ([function-string
+                         (datum->syntax #'name
+                                        (symbol->function-name-string (syntax->datum #'name)))])
+            #'(define name
+                (foreign-procedure function-string args return)))]
+        [(_ fdef ...)
+         #'(begin
+             (c-function fdef) ...)])))
 
   ;; [syntax] c-default-function: define c functions that take a default argument.
   ;; This behaves like c-function, except it first takes a (type, instance) pair.
@@ -59,17 +91,21 @@
   (define-syntax c-default-function
     (lambda (stx)
       (syntax-case stx ()
-        [(_ (type instance) (name (arg ...) return) ...)
+        [(_ (def-type def-instance) (name args return) ...)
          (with-syntax ([(function-string ...)
                         (map (lambda (n)
                                (datum->syntax n
                                  (symbol->function-name-string (syntax->datum n))))
-                             #'(name ...))])
+                             #'(name ...))]
+                       [(((arg-type arg-name arg-call) ...) ...)
+                        (map
+                          make-ev-tstamp-args
+                          #'(args ...))])
             #'(begin
                 (define name
-                  (let ([ffi-func (foreign-procedure function-string (type arg ...) return)])
-                    (lambda args
-                      (apply ffi-func instance args)))) ...))])))
+                  (let ([ffi-func (foreign-procedure function-string (def-type arg-type ...) return)])
+                    (lambda (arg-name ...)
+                      (ffi-func def-instance arg-call ...)))) ...))])))
 
   ;; parse-enum-bit-defs: internal function.
   ;; parses enumdefs (for c-enum) and bitdefs (for c-bitmap).
@@ -222,4 +258,5 @@
          [(file-exists? (car fps))
           (car fps)]
          [else
-          (loop (cdr fps))])))))
+          (loop (cdr fps))]))))
+  )
