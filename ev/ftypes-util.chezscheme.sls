@@ -13,12 +13,14 @@
         (lambda (func str)
           (list->string (map func (string->list str)))))
 
-  (meta define symbol->function-name-string
-        (lambda (sym)
-          (string-map (lambda (c)
-                        (if (eqv? c #\-)
-                            #\_ c))
-                      (symbol->string sym))))
+  (meta define syntax->function-name-string
+        (lambda (stx)
+          (datum->syntax
+            stx
+            (string-map (lambda (c)
+                          (if (eqv? c #\-)
+                              #\_ c))
+                        (symbol->string (syntax->datum stx))))))
 
   (meta define has-ev-tstamp?
         (lambda (syms)
@@ -55,18 +57,14 @@
       (syntax-case stx ()
         [(_ (name args return))
          (has-ev-tstamp? #'args)
-         (with-syntax ([function-string
-                         (datum->syntax #'name
-                                        (symbol->function-name-string (syntax->datum #'name)))]
+         (with-syntax ([function-string (syntax->function-name-string #'name)]
                        [((arg-type arg-name arg-call) ...) (make-ev-tstamp-args #'args)])
             #'(define name
                 (lambda (arg-name ...)
                   (let ([fp (foreign-procedure function-string (arg-type ...) return)])
                     (fp arg-call ...)))))]
         [(_ (name args return))
-         (with-syntax ([function-string
-                         (datum->syntax #'name
-                                        (symbol->function-name-string (syntax->datum #'name)))])
+         (with-syntax ([function-string (syntax->function-name-string #'name)])
             #'(define name
                 (foreign-procedure function-string args return)))]
         [(_ fdef ...)
@@ -93,10 +91,7 @@
       (syntax-case stx ()
         [(_ (def-type def-instance) (name args return) ...)
          (with-syntax ([(function-string ...)
-                        (map (lambda (n)
-                               (datum->syntax n
-                                 (symbol->function-name-string (syntax->datum n))))
-                             #'(name ...))]
+                        (map syntax->function-name-string #'(name ...))]
                        [(((arg-type arg-name arg-call) ...) ...)
                         (map
                           make-ev-tstamp-args
