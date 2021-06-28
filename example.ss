@@ -1,18 +1,31 @@
+#! /bin/sh
+#|
+exec /usr/bin/env chez-scheme --script "$0" "$@"
+
+# BUG? Running via scheme-script results in watcher-guardian thinking every object is dereferenced
+# after (collect) is first called.
 #! /usr/bin/env scheme-script
+|#
 
 ;; Small example of using ev library under chez scheme.
 
 (import
  (ev)
- (rnrs))
+ (chezscheme))
 
+(collect-notify #t)
 (define tw
   (ev-timer 1 5
     (let ([j 0])
-      (lambda (timer i)
+      (lambda (w i)
         (set! j (+ 1 j))
         (display "timer called ")(display j)(newline)
-        (when (> j 4)
+        (when (= j 2)
+          (display "de-reference stdin watcher\n")
+          (set! stdinw #f))
+        (collect)
+        (free-watchers)
+        (when (> j 5)
           (ev-break (evbreak 'ONE)))))))
 
 (define stdinw

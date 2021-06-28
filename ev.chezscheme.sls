@@ -3,6 +3,8 @@
 ;; SPDX-License-Identifier: Unlicense
 (library (ev)
   (export
+   free-watchers collect-watchers
+
     ;; enums, bitmaps and IDs.
    EV_VERSION_MAJOR EV_VERSION_MINOR
    evmask EV_NONE EV_IO
@@ -334,6 +336,46 @@
      [()	(ev-break (evbreak 'ONE))]
      [(how)	(ev_break (current-loop) how)]))
 
+  (define watcher-guardian
+    (make-guardian))
+
+  (define-record-type wc	; wc = watcher-context.
+    (fields
+      watcher
+      ftype-callback
+      stop-thunk))
+
+  (define collect-watchers
+    (make-parameter 3
+      (lambda (val)
+        (cond
+          [(and (integer? val) (fx>? val 0))
+           ;; Collect up to val orphaned watchers.
+           val]
+          [(eq? val #t)
+           ;; Collect all orphaned watchers.
+           +inf.0]
+          [else
+            ;; Do not collect any orphaned watchers.
+            #f]))))
+
+  (define free-watchers
+    (case-lambda
+      [()
+       (free-watchers (collect-watchers))]
+      [(c)
+       (when c
+         (let loop ([i c] [wcxt (watcher-guardian)])
+           (when (and wcxt (> i 0))
+             (when (collect-notify)
+               (display "free watcher: ")(display wcxt)(newline))
+             ((wc-stop-thunk wcxt))
+             ;; free() the pointer returned by make-<watcher-type>.
+             (foreign-free (wc-watcher wcxt))
+             ;; unlock the callback function address so that the Chez gc can remove it.
+             (unlock-object (foreign-callable-code-object (ftype-pointer-address (wc-ftype-callback wcxt))))
+             (loop (- i 1) (watcher-guardian)))))]))
+
   (define-syntax define-watcher
     (lambda (x)
       (define make-id-syntax
@@ -350,6 +392,7 @@
         [(k watcher-name args ...)
          (with-syntax ([make-watcher-func (make-id-syntax #'k "make-" #'watcher-name)]
                        [start-watcher-func (make-id-syntax #'k #'watcher-name "-start")]
+                       [stop-watcher-func (make-id-syntax #'k #'watcher-name "-stop")]
                        [cb-func-type (make-id-syntax #'k #'watcher-name "-cb-t")])
            #'(define watcher-name
                (lambda (args ... callback-func)
@@ -358,9 +401,14 @@
                                        (lambda (loop w rev)
                                          (parameterize ([current-loop loop])
                                            (callback-func w rev))))]
-                        [watcher (make-watcher-func args ... fp-callback)])
+                        [watcher (make-watcher-func args ... fp-callback)]
+                        [wcxt (make-wc watcher fp-callback (lambda () (stop-watcher-func watcher)))])
+                   ;; Note: (locked-object? (foreign-callable-code-object (ftype-pointer-address fp-callback))) => #t
+                   (watcher-guardian wcxt)
                    (start-watcher-func watcher)
-                   watcher))))])))
+                   ;; Return watcher-context. Caller should keep a reference to this and/or manage (collect-watchers).
+                   ;; FIXME caller cannot pass wcxt to (stop-<event-type>).
+                   wcxt))))])))
 
   (define-syntax batch
     (syntax-rules ()
