@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: Unlicense
 (library (ev)
   (export
-   free-watchers collect-watchers
+   free-watcher free-watchers collect-watchers
 
     ;; enums, bitmaps and IDs.
    EV_VERSION_MAJOR EV_VERSION_MINOR
@@ -66,7 +66,13 @@
    ev-embed ev-embed-other-get
    ev-fork
    ev-cleanup
-   ev-async ev-async-pending-get)
+   ev-async ev-async-pending-get
+
+   ;; Convenience wrappers for the 3 modes of ev-periodic timers.
+   ;; See libev(3).
+   ev-absolute-timer
+   ev-interval-timer
+   ev-manual-timer)
   (import
    (chezscheme)
    (ev ftypes-util))
@@ -345,6 +351,11 @@
       ftype-callback
       stop-thunk))
 
+  (define-record-type pwc	; pwc = periodic-watcher-context
+    (parent wc)
+    (fields
+      (immutable ftype-reschedule-callback)))
+
   (define collect-watchers
     (make-parameter 3
       (lambda (val)
@@ -359,6 +370,16 @@
             ;; Do not collect any orphaned watchers.
             #f]))))
 
+  (define free-watcher
+    (lambda (w)
+      ((wc-stop-thunk w))
+      ;; free() the pointer returned by make-<watcher-type>.
+      (foreign-free (wc-watcher w))
+      ;; unlock the callback function address so that the Chez gc can remove it.
+      (unlock-object (foreign-callable-code-object (ftype-pointer-address (wc-ftype-callback w))))
+      (when (pwc? w)
+        (unlock-object (foreign-callable-code-object (ftype-pointer-address (pwc-ftype-reschedule-callback w)))))))
+
   (define free-watchers
     (case-lambda
       [()
@@ -369,11 +390,7 @@
            (when (and wcxt (> i 0))
              (when (collect-notify)
                (display "free watcher: ")(display wcxt)(newline))
-             ((wc-stop-thunk wcxt))
-             ;; free() the pointer returned by make-<watcher-type>.
-             (foreign-free (wc-watcher wcxt))
-             ;; unlock the callback function address so that the Chez gc can remove it.
-             (unlock-object (foreign-callable-code-object (ftype-pointer-address (wc-ftype-callback wcxt))))
+             (free-watcher wcxt)
              (loop (- i 1) (watcher-guardian)))))]))
 
   (define-syntax define-watcher
@@ -431,4 +448,48 @@
     (ev-fork)
     (ev-cleanup)
     (ev-async))
+
+  (define time->number
+    (lambda (t)
+      (+ (time-second t)
+         (inexact (* (time-nanosecond t) (expt 10 -9))))))
+
+  (define time->absolute-number
+    (lambda (t)
+      (time->number
+        (case (time-type t)
+          [(time-duration)
+           (add-duration (current-time) t)]
+          [(time-utc)
+           t]
+          [else
+            (error 'time->absolute-number "time-utc or time-duration argument required" t)]))))
+
+  ;; There are three main ways to use ev-periodic. Expose convenience wrappers for them rather than the low level ev-periodic.
+  ;; Do these as syntax just to be the same as the other ev-watcher types.
+  ;; See libev(3)
+  (define-syntax ev-absolute-timer
+    (syntax-rules ()
+      [(_ time cb)
+       (ev-periodic (time->absolute-number time) 0 (make-ftype-pointer ev-periodic-rcb-t 0) cb)]))
+
+  (define-syntax ev-interval-timer
+    (syntax-rules ()
+      [(_ interval cb)
+       (ev-periodic 0. interval (make-ftype-pointer ev-periodic-rcb-t 0) cb)]
+      [(_ offset interval cb)
+       (ev-periodic offset interval (make-ftype-pointer ev-periodic-rcb-t 0) cb)]))
+
+  (define-syntax ev-manual-timer
+    (syntax-rules ()
+      [(_ rcb cb)
+       ;; Consider wrapping rcb-t such that 'now' is converted to a time object
+       ;; and return is assumed to be another time object that's converted to ev-tstamp.
+       (let* ([fp-rcb (make-ftype-pointer ev-periodic-rcb-t rcb)]
+              [wc (ev-periodic 0 0 fp-rcb cb)])
+         (make-pwc
+           (wc-watcher wc)
+           (wc-ftype-callback wc)
+           (wc-stop-thunk wc)
+           fp-rcb))]))
   )
