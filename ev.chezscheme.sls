@@ -12,6 +12,7 @@
    evbackend
    evrun
    evbreak
+   ev-child-trace
    EV_DEFAULT
 
    ;; parameter.
@@ -130,6 +131,10 @@
    (CANCEL		0)
    (ONE			1)
    (ALL			2))
+
+  (c-enum ev-child-trace
+    (TERM	0)
+    (ANY	1))
 
   (define-ftype ev-loop* void*)
 

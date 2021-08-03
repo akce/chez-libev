@@ -74,11 +74,16 @@ int		ev_async_pending_get	(const ev_async* watcher)	{return ev_async_pending(wat
 
 /*
  * Watcher constructors.
- * These follow the Perl::EV convention of putting the callback argument last.
+ *
  * Each return a pointer to the ev type object allocated on the heap and initialised.
- * The benefit is that the FFI layer does not need to define any of these structures
- * and clients can treat these as opaque pointers.
- * TODO provide a way to free.
+ *
+ * The benefit is that the C compiler handles structure sizes and scheme can treat these as opaque pointers.
+ *
+ * There's also no need to provide ev_TYPE_init function wrappers.
+ *
+ * Use free() or foreign-free to free returned memory.
+ *
+ * Note: These follow the Perl::EV convention of putting the callback argument last.
  */
 #define ALLOCZ(type)				\
     type* watcher;      			\
