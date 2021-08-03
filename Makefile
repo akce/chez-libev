@@ -1,5 +1,5 @@
 # chez-libev Makefile.
-# Written by Akce 2019, 2020.
+# Written by Jerry 2019-2021.
 # SPDX-License-Identifier: Unlicense
 
 # Provide a CONFIG_H to tailor header to libev as installed at site.
@@ -12,7 +12,7 @@
 LIBDIR = ~/lib/csv$(shell $(SCHEME) --version 2>&1)
 
 # Path to chez scheme executable.
-SCHEME = /usr/bin/scheme
+SCHEME = /usr/bin/chez-scheme
 
 # Scheme compile flags.
 SFLAGS = -q
@@ -26,25 +26,25 @@ LIBFLAGS = -shared
 
 ## Should be no need to edit anything below here.
 
-PROJDIR = ev
-
-LIBOBJ = $(PROJDIR)/ev-ffi.o
-LIBSO = $(PROJDIR)/libchez-ffi.so
-
-# Source files for the library subdirectory.
-SUBSRC = $(PROJDIR)/ftypes-util.chezscheme.sls
-# Source objects for the library subdirectory.
-SUBOBJ = $(PROJDIR)/ftypes-util.chezscheme.so
+LIBOBJ = ev-ffi.o
+LIBSO = ev-ffi.so
 
 # Root source file.
-ROOTSRC = ev.chezscheme.sls
-# Root shared object.
-ROOTOBJ = ev.chezscheme.so
+SRC = ev.chezscheme.sls
+OBJ = ev.chezscheme.so
 
-all: $(LIBSO) $(SUBOBJ) $(ROOTOBJ)
+# Installed paths.
+ILIBSO = $(addprefix $(LIBDIR)/,$(LIBSO))
+ISRC = $(addprefix $(LIBDIR)/,$(SRC))
+IOBJ = $(addprefix $(LIBDIR)/,$(OBJ))
+
+all: install
 
 $(LIBSO): $(LIBOBJ)
 	$(CC) $(LIBFLAGS) $^ -o $@
+
+$(ILIBSO): $(LIBSO)
+	$(INSTALL) -D -p -t $(LIBDIR) $(LIBSO)
 
 %.o: %.c
 	$(CC) $(CFLAGS) $< -o $@
@@ -52,20 +52,20 @@ $(LIBSO): $(LIBOBJ)
 %.so: %.sls
 	echo '(reset-handler abort) (compile-library "'$<'")' | $(SCHEME) $(SFLAGS)
 
+$(LIBDIR)/%.sls: %.sls
+	$(INSTALL) -D -p $< $@
+
 # install-lib is always required, installations then need to decide what combination of src/so they want.
 # Default install target is for everything.
-install: install-lib install-so install-src
+install: install-so
 
-install-lib: all
-	$(INSTALL) -D -p -t $(LIBDIR)/$(PROJDIR) $(LIBSO)
+install-lib: $(ILIBSO)
+	$(INSTALL) -D -p -t $(LIBDIR) $(LIBSO)
 
-install-so: all
-	$(INSTALL) -D -p -t $(LIBDIR)/$(PROJDIR) $(SUBOBJ)
-	$(INSTALL) -D -p -t $(LIBDIR) $(ROOTOBJ)
+install-src: install-lib $(ISRC)
+	$(INSTALL) -D -p -t $(LIBDIR) $(SRC)
 
-install-src: all
-	$(INSTALL) -D -p -t $(LIBDIR)/$(PROJDIR) $(SUBSRC)
-	$(INSTALL) -D -p -t $(LIBDIR) $(ROOTSRC)
+install-so: install-src $(IOBJ)
 
 clean:
-	$(RM) $(LIBOBJ) $(LIBSO) $(ROOTOBJ) $(SUBOBJ)
+	$(RM) $(LIBOBJ) $(LIBSO) $(ISRC) $(ILIBSO)
