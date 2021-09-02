@@ -4,6 +4,7 @@
 (library (ev)
   (export
    free-watcher free-watchers collect-watchers
+   wc-watcher
 
     ;; enums, bitmaps and IDs.
    EV_VERSION_MAJOR EV_VERSION_MINOR
