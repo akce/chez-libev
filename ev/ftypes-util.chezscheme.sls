@@ -192,8 +192,8 @@
   ;; 1
   ;; > (flags 'B)
   ;; 4
-  ;; > (flags 'C)
-  ;; 8
+  ;; > (flags 'A 'C)
+  ;; 9
   ;; > (flags #b0)
   ;; ()
   ;; > (flags #b1)
@@ -213,34 +213,37 @@
          (with-syntax
            ;; TODO define parser separate from enum that defaults to left shifting successive fields.
            ;; TODO or at least forces explicit setting of field bits.
-          ([((esym eid) ...) (parse-enum-bit-defs #'(bitdef1 bitdef* ...))])
-          #'(define name
-              (case-lambda
-               [()
-                '((esym . eid) ...)]
-               [(x)
-                (name
-                 (cond
-                  [(symbol? x)  'get-value]
-                  [(number? x)  'get-symbols]
-                  [else x])
-                 x)]
-               [(cmd arg)
-                (case cmd
-                  [(get-value)
-                   (case arg
-                     [(esym) eid] ...
-                     [else (error (syntax->datum #'name) (format #f "value not defined for identifier ~s in bitmap" arg))])]
-                  [(get-symbols)
-                   (let loop ([ids '(eid ...)] [syms '(esym ...)])
+           ([((esym eid) ...) (parse-enum-bit-defs #'(bitdef1 bitdef* ...))])
+           #'(define name
+               (let
+                 ([sym->int
+                    (lambda (sym)
+                      (case sym
+                        [(esym) eid] ...
+                        [else
+                          (errorf 'name "~a not found in bitmap" sym)]))])
+                 (case-lambda
+                   [()
+                    '((esym . eid) ...)]
+                   [args
                      (cond
-                      [(null? ids) '()]
-                      [else
-                       (if (= (bitwise-and arg (car ids)) (car ids))
-                           (cons (car syms) (loop (cdr ids) (cdr syms)))
-                           (loop (cdr ids) (cdr syms)))]))]
-                  [else
-                   (error (syntax->datum #'name) (format #f "unknown bitmap command ~s" cmd))])])))])))
+                       [(symbol? (car args))
+                        (fold-left
+                          (lambda (acc x)
+                            (bitwise-ior acc (sym->int x)))
+                          0
+                          args)]
+                       [(number? (car args))
+                        (let loop ([ids '(eid ...)] [syms '(esym ...)])
+                          (cond
+                            [(null? ids)
+                             '()]
+                            [(= (bitwise-and (car args) (car ids)) (car ids))
+                             (cons (car syms) (loop (cdr ids) (cdr syms)))]
+                            [else
+                              (loop (cdr ids) (cdr syms))]))]
+                       [else
+                         (errorf 'name "unknown bitmap command ~a" args)])]))))])))
 
   ;; [procedure] locate-library-object: find first instance of filename within (library-directories) object directories.
   ;; Returns full path of located file, including the filename itself. filename only if not found.
