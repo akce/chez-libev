@@ -102,5 +102,5 @@
 
 (ev-run)
 (close ofd)
-(free-watcher io-watcher)
+(ev-free-watcher! io-watcher)
 (foreign-free (ftype-pointer-address buf))
