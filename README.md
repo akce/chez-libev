@@ -237,9 +237,7 @@ Watch for status changes on a process or processes. See your system's *wait(2)* 
 
 `trace` is 0 to wait only for terminating processes, or 1 to include stopped and continued state changes.
 
-I've had luck waiting for processes created via [open-process-ports](https://cisco.github.io/ChezScheme/csug9.5/foreign.html#./foreign:s5) but i suspect that's because these bindings clobber Chez's SIGCHLD handler and so Chez's pid list is not cleared.
-
-That's a guess and something that needs to be looked into.
+I've had luck waiting for processes created via [open-process-ports](https://cisco.github.io/ChezScheme/csug9.5/foreign.html#./foreign:s5). Chez reaps child processes as part of garbage collection (search S_child_processes in the Chez code) and so i don't think these systems clash with each other.
 
 #### ev-stat
 
@@ -324,7 +322,6 @@ TBD
 ## TODO
 
 - [ ] Test and document all remaining high-level functions
-- [ ] Investigate `open-process-ports` and `ev-child` interaction
 - [ ] Investigate moving the C layer into a pure ftype wrapper as compile-whole-program is so neat
 - [ ] Unify high and low level functions to support watcher records
 - [ ] Implement ftype-guardians to auto free unused watcher records
