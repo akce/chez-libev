@@ -126,7 +126,7 @@ This function takes a watcher record, as created by one of the high-level functi
 #### ev-io
 
 ```
-[syntax] ev-io
+[procedure] ev-io
 [args] file-descriptor evmask callback
 [return] watcher-record
 ```
@@ -136,7 +136,7 @@ Watches `file-descriptor` for event types specified by `evmask`. Event types are
 #### ev-timer
 
 ```
-[syntax] ev-timer
+[procedure] ev-timer
 [args] after repeat callback
 [return] watcher-record
 ```
@@ -148,7 +148,7 @@ Both `after` and `repeat` are in seconds and may be fixnums or flonums.
 #### ev-periodic
 
 ```
-[syntax] ev-periodic
+[procedure] ev-periodic
 [args] offset interval reschedule-callback callback
 [return] watcher-record
 ```
@@ -204,7 +204,7 @@ TBD
 #### ev-signal
 
 ```
-[syntax] ev-signal
+[procedure] ev-signal
 [args] signum callback
 [return] watcher-record
 ```
@@ -228,7 +228,7 @@ eg, fake a **KEY_RESIZE** keypress to `ev-io` STDIN watchers in order to handle 
 #### ev-child
 
 ```
-[syntax] ev-child
+[procedure] ev-child
 [args] pid trace callback
 [return] watcher-record
 ```
@@ -242,7 +242,7 @@ I've had luck waiting for processes created via [open-process-ports](https://cis
 #### ev-stat
 
 ```
-[syntax] ev-stat
+[procedure] ev-stat
 [args] path interval callback
 [return] watcher-record
 ```
@@ -252,7 +252,7 @@ TBD
 #### ev-idle
 
 ```
-[syntax] ev-idle
+[procedure] ev-idle
 [args] callback
 [returns] watcher-record
 ```
@@ -262,7 +262,7 @@ TBD
 #### ev-prepare
 
 ```
-[syntax] ev-prepare
+[procedure] ev-prepare
 [args] callback
 [returns] watcher-record
 ```
@@ -272,7 +272,7 @@ TBD
 #### ev-check
 
 ```
-[syntax] ev-check
+[procedure] ev-check
 [args] callback
 [returns] watcher-record
 ```
@@ -282,7 +282,7 @@ TBD
 #### ev-embed
 
 ```
-[syntax] ev-embed
+[procedure] ev-embed
 [args] other callback
 [returns] watcher-record
 ```
@@ -292,7 +292,7 @@ TBD
 #### ev-fork
 
 ```
-[syntax] ev-fork
+[procedure] ev-fork
 [args] callback
 [returns] watcher-record
 ```
@@ -302,7 +302,7 @@ TBD
 #### ev-cleanup
 
 ```
-[syntax] ev-cleanup
+[procedure] ev-cleanup
 [args] callback
 [returns] watcher-record
 ```
@@ -312,7 +312,7 @@ TBD
 #### ev-async
 
 ```
-[syntax] ev-async
+[procedure] ev-async
 [args] callback
 [returns] watcher-record
 ```
