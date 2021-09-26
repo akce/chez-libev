@@ -3,8 +3,14 @@
 ;; SPDX-License-Identifier: Unlicense
 (library (ev)
   (export
-   free-watcher free-watchers collect-watchers
-   wc-watcher
+    ;; watcher context functions.
+   ev-free-watcher!
+   ev-watcher-address
+    ;; free-watcher was accidentally published, so leave for now but it will be removed in future versions.
+   (rename
+     (ev-free-watcher! free-watcher))
+   ;; These have issues, so don't export for now.
+   ;;free-watchers collect-watchers
 
     ;; enums, bitmaps and IDs.
    EV_VERSION_MAJOR EV_VERSION_MINOR
@@ -353,9 +359,9 @@
 
   (define-record-type wc	; wc = watcher-context.
     (fields
-      watcher
-      ftype-callback
-      stop-thunk))
+      (mutable watcher ev-watcher-address ev-watcher-address-set!)
+      (immutable ftype-callback)
+      (immutable stop-thunk)))
 
   (define-record-type pwc	; pwc = periodic-watcher-context
     (parent wc)
@@ -376,15 +382,18 @@
             ;; Do not collect any orphaned watchers.
             #f]))))
 
-  (define free-watcher
+  (define ev-free-watcher!
     (lambda (w)
-      ((wc-stop-thunk w))
-      ;; free() the pointer returned by make-<watcher-type>.
-      (foreign-free (wc-watcher w))
-      ;; unlock the callback function address so that the Chez gc can remove it.
-      (unlock-object (foreign-callable-code-object (ftype-pointer-address (wc-ftype-callback w))))
-      (when (pwc? w)
-        (unlock-object (foreign-callable-code-object (ftype-pointer-address (pwc-ftype-reschedule-callback w)))))))
+      (when (ev-watcher-address w)
+        ((wc-stop-thunk w))
+        ;; free() the pointer returned by make-<watcher-type>.
+        (foreign-free (ev-watcher-address w))
+        ;; ensure there's no double free.
+        (ev-watcher-address-set! w #f)
+        ;; unlock the callback function address so that the Chez gc can remove it.
+        (unlock-object (foreign-callable-code-object (ftype-pointer-address (wc-ftype-callback w))))
+        (when (pwc? w)
+          (unlock-object (foreign-callable-code-object (ftype-pointer-address (pwc-ftype-reschedule-callback w))))))))
 
   (define free-watchers
     (case-lambda
@@ -396,7 +405,7 @@
            (when (and wcxt (> i 0))
              (when (collect-notify)
                (display "free watcher: ")(display wcxt)(newline))
-             (free-watcher wcxt)
+             (ev-free-watcher! wcxt)
              (loop (- i 1) (watcher-guardian)))))]))
 
   (define-syntax define-watcher
@@ -494,7 +503,7 @@
        (let* ([fp-rcb (make-ftype-pointer ev-periodic-rcb-t rcb)]
               [wc (ev-periodic 0 0 fp-rcb cb)])
          (make-pwc
-           (wc-watcher wc)
+           (ev-watcher-address wc)
            (wc-ftype-callback wc)
            (wc-stop-thunk wc)
            fp-rcb))]))
