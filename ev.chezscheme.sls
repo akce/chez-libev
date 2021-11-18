@@ -76,6 +76,9 @@
    ev-cleanup
    ev-async ev-async-pending-get
 
+   (rename
+     (ev-watcher-is-active ev-watcher-active?))
+
    ;; Convenience wrappers for the 3 modes of ev-periodic timers.
    ;; See libev(3).
    ev-absolute-timer
@@ -246,6 +249,8 @@
    ;; TODO ev-stat getters.
    (ev-embed-other-get		(ev-embed*) ev-loop*)
    (ev-async-pending-get	(ev-async*) int)
+
+   (ev-watcher-is-active	(ev-watcher*)	boolean)
 
    ;; TODO need to look at these. Note the ev-watcher types.
    (ev-priority-get		(ev-watcher*) int)

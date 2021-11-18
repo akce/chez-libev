@@ -49,6 +49,7 @@ typedef void (*ev_async_cb_t)	(EV_P_ ev_async* watcher, int revents);
  * ev.h marks fields as ro, rw, private and unused.
  * Provide getters for ro, and getter/setters for rw, otherwise ignore the rest.
  */
+int		ev_watcher_is_active	(const ev_watcher* watcher)	{return ev_is_active(watcher);}
 int		ev_io_fd_get		(const ev_io* watcher)		{return watcher->fd;}
 int		ev_io_events_get	(const ev_io* watcher)		{return watcher->events;}
 ev_tstamp	ev_timer_repeat_get	(const ev_timer* watcher)	{return watcher->repeat;}
