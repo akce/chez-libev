@@ -62,7 +62,7 @@
    ev-async-start ev-async-stop ev-async-send
 
    ;; Event watchers.
-   ev-io ev-io-fd-get ev-io-events-get
+   ev-io ev-io-fd-get ev-io-events-get (rename (ev-io-events-set ev-io-modify))
    ev-timer ev-timer-repeat-get ev-timer-repeat-set
    ev-periodic ev-periodic-offset-get ev-periodic-offset-set ev-periodic-interval-get ev-periodic-interval-set ev-periodic-rcb-get ev-periodic-rcb-set
    ev-signal ev-signal-signum-get
@@ -229,6 +229,8 @@
    (make-ev-fork	((* ev-fork-cb-t))	ev-fork*)
    (make-ev-cleanup	((* ev-cleanup-cb-t))	ev-cleanup*)
    (make-ev-async	((* ev-async-cb-t))	ev-async*)
+   ;; watcher macro wrappers
+   (ev-io-events-set		(ev-io* int)	void)
    ;; watcher accessors
    (ev-io-fd-get		(ev-io*)	int)
    (ev-io-events-get		(ev-io*)	int)

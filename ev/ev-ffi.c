@@ -66,6 +66,10 @@ int		ev_child_rpid_get	(const ev_child* watcher)	{return watcher->rpid;}
 int		ev_child_rstatus_get	(const ev_child* watcher)	{return watcher->rstatus;}
 void		ev_child_rpid_set	(ev_child* watcher, int value)	{watcher->rpid = value;}
 void		ev_child_rstatus_set	(ev_child* watcher, int value)	{watcher->rstatus = value;}
+
+/* Macro wrappers. */
+void		ev_io_events_set	(ev_io* watcher, int events)	{ev_io_modify(watcher, events);}
+
 /*
  * TODO ev_stat getters
  * ev_stat contains two ro ev_statdata structures. Need to think about how to return those.
