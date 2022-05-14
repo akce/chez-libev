@@ -84,6 +84,8 @@
    (rename
      (ev-watcher-is-active ev-watcher-active?))
 
+   ev-ms
+
    ;; Convenience wrappers for the 3 modes of ev-periodic timers.
    ;; See libev(3).
    ev-absolute-timer
@@ -475,6 +477,11 @@
     (ev-fork)
     (ev-cleanup)
     (ev-async))
+
+  (define-syntax ev-ms
+    (syntax-rules ()
+      [(_ ms)
+       (inexact (/ ms 1000))]))
 
   (define time->number
     (lambda (t)
