@@ -62,7 +62,10 @@
    ev-async-start ev-async-stop ev-async-send
 
    ;; Event watchers.
-   ev-io ev-io-fd-get ev-io-events-get (rename (ev-io-events-set ev-io-modify))
+   ev-io (rename
+           (ev-io-fd-get ev-io-fd)
+           (ev-io-events-get ev-io-events)
+           (ev-io-events-set ev-io-events-set!))
    ev-timer ev-timer-repeat-get ev-timer-repeat-set
    ev-periodic ev-periodic-offset-get ev-periodic-offset-set ev-periodic-interval-get ev-periodic-interval-set ev-periodic-rcb-get ev-periodic-rcb-set
    ev-signal ev-signal-signum-get
