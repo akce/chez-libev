@@ -66,7 +66,9 @@
            (ev-io-fd-get ev-io-fd)
            (ev-io-events-get ev-io-events)
            (ev-io-events-set ev-io-events-set!))
-   ev-timer ev-timer-repeat-get ev-timer-repeat-set
+   ev-timer (rename
+              (ev-timer-repeat-get ev-timer-repeat)
+              (ev-timer-repeat-set ev-timer-repeat-set!))
    ev-periodic ev-periodic-offset-get ev-periodic-offset-set ev-periodic-interval-get ev-periodic-interval-set ev-periodic-rcb-get ev-periodic-rcb-set
    ev-signal ev-signal-signum-get
    ev-child ev-child-pid-get ev-child-rpid-get ev-child-rpid-set ev-child-rstatus-get ev-child-rstatus-set
