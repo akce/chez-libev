@@ -3,6 +3,10 @@
 ;; A simple demo of how a hex dump script could be written using ev and posix primitives.
 ;; ev-io is used to read 'chunk-size' bytes from a source file and hex-dumps that to screen.
 ;;
+;; Note: waiting on file descriptors is usually not a good idea and doesn't behave as you
+;; would intuitively expect, however this demo does show the "level-edged" nature of libev.
+;; See libev(3) "The special problem of files" for why this is so.
+;;
 ;; The library and #defines are Linux specific.
 ;;
 ;; Use:
