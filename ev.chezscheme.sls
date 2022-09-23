@@ -1,5 +1,5 @@
-;; libev bindings for Chez scheme.
-;; Written by Jerry 2019-2021.
+;; libev bindings for Chez Scheme.
+;; Written by Jerry 2019-2022.
 ;; SPDX-License-Identifier: Unlicense
 (library (ev)
   (export
@@ -79,7 +79,8 @@
    ev-embed ev-embed-other-get
    ev-fork
    ev-cleanup
-   ev-async ev-async-pending-get
+   ev-async
+   (rename (ev-async-pending-get ev-async-pending?))
 
    (rename
      (ev-watcher-is-active ev-watcher-active?))
@@ -257,7 +258,7 @@
    (ev-child-rstatus-set	(ev-child* int) void)
    ;; TODO ev-stat getters.
    (ev-embed-other-get		(ev-embed*) ev-loop*)
-   (ev-async-pending-get	(ev-async*) int)
+   (ev-async-pending-get	(ev-async*) boolean)
 
    (ev-watcher-is-active	(ev-watcher*)	boolean)
 

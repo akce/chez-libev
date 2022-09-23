@@ -36,13 +36,17 @@ Those using this library as part of [compiled programs](https://cisco.github.io/
 (import (ev))
 ```
 
-An [example](example.ss) script is provided that demonstrates `io` and `timer` watchers. eg,
+An [example](example.ss) script is provided that demonstrates `async`, `io`, `prepare` and `timer` watchers. eg,
 
 ```shell
 $ ./example.ss
+enabling timer watcher..
+async before timer: pending #t
 timer called 1
+async after timer: pending #f
+async before timer: pending #t
 timer called 2
-timer called 3
+async after timer: pending #f
 h
 key pressed: h
 $
@@ -267,7 +271,7 @@ TBD
 [returns] watcher-record
 ```
 
-TBD
+ev-prepare creates watchers that execute their callback just before the ev-loop would go to sleep.
 
 #### ev-check
 
@@ -277,7 +281,7 @@ TBD
 [returns] watcher-record
 ```
 
-TBD
+ev-check creates watchers whose callback functions are executed just after the ev-loop has woken up.
 
 #### ev-embed
 
@@ -317,7 +321,9 @@ TBD
 [returns] watcher-record
 ```
 
-TBD
+ev-async watchers create callbacks whose execution will be triggered via calls to `ev-async-send`.
+
+`ev-async-pending?` will return `#t` if a watcher's callback will be run.
 
 ## TODO
 
