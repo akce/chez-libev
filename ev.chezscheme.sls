@@ -6,9 +6,7 @@
     ;; watcher context functions.
    ev-free-watcher!
    ev-watcher-address
-    ;; free-watcher was accidentally published, so leave for now but it will be removed in future versions.
-   (rename
-     (ev-free-watcher! free-watcher))
+
    ;; These have issues, so don't export for now.
    ;;free-watchers collect-watchers
 
