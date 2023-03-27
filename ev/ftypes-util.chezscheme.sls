@@ -5,6 +5,7 @@
   (export
    c-function c-default-function
    c-bitmap c-enum
+   ftype-offsetof
    locate-library-object)
   (import
    (chezscheme))
@@ -244,6 +245,14 @@
                               (loop (cdr ids) (cdr syms))]))]
                        [else
                          (errorf 'name "unknown bitmap command ~a" args)])]))))])))
+
+  ;; [syntax] ftype-offsetof byte offset of field from start of struct
+  ;; Equivalent to C99's offsetof() macro.
+  (define-syntax ftype-offsetof
+    (syntax-rules ()
+      [(_ type field)
+       (ftype-pointer-address
+         (ftype-&ref type (field) (make-ftype-pointer type 0)))]))
 
   ;; [procedure] locate-library-object: find first instance of filename within (library-directories) object directories.
   ;; Returns full path of located file, including the filename itself. filename only if not found.
