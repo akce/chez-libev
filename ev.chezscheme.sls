@@ -61,9 +61,9 @@
 
    ;; Event watchers.
    ev-io (rename
-           (ev-io-fd-get ev-io-fd)
-           (ev-io-events-get ev-io-events)
-           (ev-io-events-set ev-io-events-set!))
+           (ev-io-t-fd ev-io-fd)
+           (ev-io-t-events ev-io-events)
+           (ev-io-t-events-set! ev-io-events-set!))
    ev-timer (rename
               (ev-timer-repeat-get ev-timer-repeat)
               (ev-timer-repeat-set ev-timer-repeat-set!))
@@ -167,20 +167,52 @@
   (define-ftype sig-atomic-t int)
 
   ;; field-acl:
-  ;;  - private is readable anytime, but not writable by us
+  ;;  - private is readable anytime and not writable by us, ie. internal to libev
   ;;  - ro is readable anytime, but only writable when watcher is inactive
   ;;  - rw is readable and writable anytime
   ;;  - unused is ignored, but only generated in the ftype struct for padding
+  ;;  - (ref ev-acl) means reference (ftype-&ref) to embedded struct to be returned due to
+  ;;    ftype-ref only working on simple/atomic types, not structs
   (define-syntax define-ev-watcher
     (lambda (x)
       (syntax-case x ()
         [(_ type-name ptr-type-name (field-name field-type field-acl) ...)
+         (with-syntax ([(getters ...) 
+                        (map
+                          (lambda (syn access)
+                            (cond
+                              [(eq? access 'unused)
+                               #'(begin)]
+                              [(pair? access)
+                               #`(define #,(make-id-syntax #'type-name #'type-name "-" syn)
+                                    (lambda (ptr)
+                                      (ftype-&ref type-name (#,syn) ptr)))]
+                              [else
+                                #`(define #,(make-id-syntax #'type-name #'type-name "-" syn)
+                                    (lambda (ptr)
+                                      (ftype-ref type-name (#,syn) ptr)))]))
+                          #'(field-name ...) (map syntax->datum #'(field-acl ...)))]
+                       [(setters ...)
+                        (map
+                          (lambda (syn access)
+                            (cond
+                              [(or (eq? access 'private) (eq? access 'unused) (pair? access))
+                               ;; NOTE: setters are never generated for (ref ev-acl), instead get the member
+                               ;; reference and use setters on that.
+                               #'(begin)]
+                              [else
+                                #`(define #,(make-id-syntax #'type-name #'type-name "-" syn "-set!")
+                                    (lambda (ptr val)
+                                      (ftype-set! type-name (#,syn) ptr val)))]))
+                          #'(field-name ...) (map syntax->datum #'(field-acl ...)))])
          #'(begin
              (define-ftype type-name
                (struct
                  (field-name field-type)
                  ...))
-             (define-ftype ptr-type-name (* type-name)))])))
+             (define-ftype ptr-type-name (* type-name))
+             getters ...
+             setters ...))])))
 
   (define-syntax define-ev-watcher-base
     (syntax-rules ()
@@ -243,11 +275,11 @@
     )
 
   (define-ev-watcher-list ev-stat-t ev-stat-t*
-    (timer	ev-timer-t	private)
+    (timer	ev-timer-t	(ref private))
     (interval	ev-tstamp	ro)
     (path	void*		ro)	; XXX const char*, not void*
-    (prev	struct-stat	ro)
-    (attr	struct-stat	ro)
+    (prev	struct-stat	(ref ro))
+    (attr	struct-stat	(ref ro))
     (wd		int		private)	; acl not specified in header for this field
     )
 
@@ -263,18 +295,18 @@
 
   (define-ev-watcher ev-embed-t ev-embed-t*
     (other	ev-loop*	ro)
-    (io		ev-io-t		private)
-    (prepare	ev-prepare-t	private)
+    (io		ev-io-t		(ref private))
+    (prepare	ev-prepare-t	(ref private))
     (check	ev-check-t	unused)
     (timer	ev-timer-t	unused)
     (periodic	ev-periodic-t	unused)
     (idle	ev-idle-t	unused)
-    (fork	ev-fork-t	private)
+    (fork	ev-fork-t	(ref private))
     (cleanup	ev-cleanup-t	unused)
     )
 
   (define-ev-watcher ev-async-t ev-async-t*
-    (sent	sig-atomic-t	private)
+    (sent	sig-atomic-t	(ref private))
     )
 
    ;; TODO need to look at these properly. These are parent types.
@@ -506,7 +538,7 @@
       (when (ev-watcher-address w)
         ((wc-stop-thunk w))
         ;; free() the pointer returned by make-<watcher-type>.
-        (foreign-free (ev-watcher-address w))
+        (foreign-free (ftype-pointer-address (ev-watcher-address w)))
         ;; ensure there's no double free.
         (ev-watcher-address-set! w #f)
         ;; unlock the callback function address so that the Chez gc can remove it.
@@ -529,16 +561,6 @@
 
   (define-syntax define-watcher
     (lambda (x)
-      (define make-id-syntax
-        (lambda (ctx . s-args)
-          (datum->syntax
-            ctx
-            (string->symbol
-              (apply string-append
-                     (map (lambda (s)
-                            (if (string? s)
-                                s
-                                (symbol->string (syntax->datum s)))) s-args))))))
       (syntax-case x ()
         [(k watcher-name args ...)
          (with-syntax ([make-watcher-func (make-id-syntax #'k "make-" #'watcher-name)]

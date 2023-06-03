@@ -6,7 +6,8 @@
    c-function c-default-function
    c-bitmap c-enum
    ftype-offsetof
-   locate-library-object)
+   locate-library-object
+   make-id-syntax)
   (import
    (chezscheme))
 
@@ -266,4 +267,15 @@
           (car fps)]
          [else
           (loop (cdr fps))]))))
+
+  (define make-id-syntax
+    (lambda (ctx . s-args)
+      (datum->syntax
+        ctx
+        (string->symbol
+          (apply string-append
+                 (map (lambda (s)
+                        (if (string? s)
+                          s
+                          (symbol->string (syntax->datum s)))) s-args))))))
   )
