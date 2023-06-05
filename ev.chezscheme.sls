@@ -103,6 +103,9 @@
   (define load-libev-ffi
     (load-shared-object (locate-library-object "ev/libchez-ffi.so")))
 
+  (define memset
+    (foreign-procedure "memset" (void* int size_t) void*))
+
   (c-bitmap evmask
    (UNDEF		#xFFFFFFFF)
    (READ		#x01)
@@ -204,7 +207,9 @@
                                 #`(define #,(make-id-syntax #'type-name #'type-name "-" syn "-set!")
                                     (lambda (ptr val)
                                       (ftype-set! type-name (#,syn) ptr val)))]))
-                          #'(field-name ...) (map syntax->datum #'(field-acl ...)))])
+                          #'(field-name ...) (map syntax->datum #'(field-acl ...)))]
+                       [allocz-name (make-id-syntax #'type-name "allocz-" #'type-name)]
+                       )
          #'(begin
              (define-ftype type-name
                (struct
@@ -212,7 +217,13 @@
                  ...))
              (define-ftype ptr-type-name (* type-name))
              getters ...
-             setters ...))])))
+             setters ...
+             (define allocz-name
+               (lambda ()
+                 ;; Allocate and zero watcher struct memory.
+                 (let ([mem (foreign-alloc (ftype-sizeof type-name))])
+                   (memset mem 0 (ftype-sizeof type-name))
+                   (make-ftype-pointer type-name mem))))))])))
 
   (define-syntax define-ev-watcher-base
     (syntax-rules ()
