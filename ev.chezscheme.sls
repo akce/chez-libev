@@ -1,5 +1,5 @@
 ;; libev bindings for Chez Scheme.
-;; Written by Jerry 2019-2022.
+;; Written by Jerry 2019-2023.
 ;; SPDX-License-Identifier: Unlicense
 (library (ev)
   (export
@@ -44,41 +44,91 @@
    ;; generic event watcher controls.
    ev-feed-event ev-feed-fd-event ev-feed-signal ev-feed-signal-event ev-invoke ev-clear-pending
 
-   ;; specific event watcher controls.
-   ev-io-start ev-io-stop
-   ev-timer-start ev-timer-stop ev-timer-again ev-timer-remaining
-   ev-periodic-start ev-periodic-stop ev-periodic-again
-   ev-signal-start ev-signal-stop
-   ev-child-start ev-child-stop
-   ev-stat-start ev-stat-stop ev-stat-stat
-   ev-idle-start ev-idle-stop
-   ev-prepare-start ev-prepare-stop
-   ev-check-start ev-check-stop
-   ev-fork-start ev-fork-stop
-   ev-cleanup-start ev-cleanup-stop
-   ev-embed-start ev-embed-stop ev-embed-sweep
-   ev-async-start ev-async-stop ev-async-send
-
    ;; Event watchers.
-   ev-io (rename
-           (ev-io-t-fd ev-io-fd)
-           (ev-io-t-events ev-io-events)
-           (ev-io-t-events-set! ev-io-events-set!))
-   ev-timer (rename
-              (ev-timer-repeat-get ev-timer-repeat)
-              (ev-timer-repeat-set ev-timer-repeat-set!))
-   ev-periodic ev-periodic-offset-get ev-periodic-offset-set ev-periodic-interval-get ev-periodic-interval-set ev-periodic-rcb-get ev-periodic-rcb-set
-   ev-signal ev-signal-signum-get
-   ev-child ev-child-pid-get ev-child-rpid-get ev-child-rpid-set ev-child-rstatus-get ev-child-rstatus-set
-   ev-stat
+   ev-io
+   (rename
+     #;(ev-io-set ev-io-set!)
+     (ev-io-fd-get ev-io-fd)
+     (ev-io-events-get ev-io-events)
+     #;(ev-io-modify ev-io-modify!))
+   ev-io-start ev-io-stop
+
+   ev-timer
+   (rename
+     #;(ev-timer-set ev-timer-set!)
+     (ev-timer-repeat-get ev-timer-repeat)
+     (ev-timer-repeat-set ev-timer-repeat-set!))
+   ev-timer-start ev-timer-stop ev-timer-again ev-timer-remaining
+
+   ev-periodic
+   (rename
+     #;(ev-periodic-set ev-periodic-set!)
+     (ev-periodic-offset-get ev-periodic-offset)
+     (ev-periodic-offset-set ev-periodic-offset-set!)
+     (ev-periodic-interval-get ev-periodic-interval)
+     (ev-periodic-interval-set ev-periodic-interval-set!)
+     (ev-periodic-rcb-get ev-periodic-rcb)
+     (ev-periodic-rcb-set ev-periodic-rcb-set!))
+   ev-periodic-start ev-periodic-stop ev-periodic-again
+
+   ev-signal
+   (rename
+     #;(ev-signal-set ev-signal-set!)
+     (ev-signal-signum-get ev-signal-signum))
+   ev-signal-start ev-signal-stop
+
+   ev-child
+   (rename
+     #;(ev-child-set ev-child-set!)
+     (ev-child-pid-get ev-child-pid)
+     (ev-child-rpid-get ev-child-rpid)
+     (ev-child-rpid-set ev-child-rpid-set!)
+     (ev-child-rstatus-get ev-child-rstatus)
+     (ev-child-rstatus-set ev-child-rstatus-set!))
+   ev-child-start ev-child-stop
+
+   ;; Disable for now. Handling path strings and stat structs needs to be thought about.
+   #;ev-stat
+   #;(rename
+     (ev-stat-set ev-stat-set!))
+   ;;ev-stat-start ev-stat-stop ev-stat-stat
+
    ev-idle
+   #;(rename
+     (ev-idle-set ev-idle-set!))
+   ev-idle-start ev-idle-stop
+
    ev-prepare
+   #;(rename
+     (ev-prepare-set ev-prepare-set!))
+   ev-prepare-start ev-prepare-stop
+
    ev-check
-   ev-embed ev-embed-other-get
+   #;(rename
+     (ev-check-set ev-check-set!))
+   ev-check-start ev-check-stop
+
+   ev-embed
+   #;(rename
+     (ev-embed-set ev-embed-set!)
+     (ev-embed-other-get ev-embed-other))
+   ev-embed-start ev-embed-stop ev-embed-sweep
+
    ev-fork
+   #;(rename
+     (ev-fork-set ev-fork-set!))
+   ev-fork-start ev-fork-stop
+
    ev-cleanup
+   #;(rename
+     (ev-cleanup-set ev-cleanup-set!))
+   ev-cleanup-start ev-cleanup-stop
+
    ev-async
+   #;(rename
+     (ev-async-set ev-async-set!))
    (rename (ev-async-pending-get ev-async-pending?))
+   ev-async-start ev-async-stop ev-async-send
 
    (rename
      (ev-watcher-is-active ev-watcher-active?))
@@ -90,21 +140,20 @@
    ev-absolute-timer
    ev-interval-timer
    ev-manual-timer
-
-
-   ev-stat-t
    )
   (import
    (chezscheme)
    (ev ftypes-util))
 
+  ;; #t: use pure scheme re-implementation of libev C macros.
+  ;; #f: use macro->function exports from ev-ffi shared lib.
+  ;; Using the pure version is easier on systems without access to a C compiler and may
+  ;; have benefits when compiling whole programs, however it has higher risk of being
+  ;; out of sync with the installed libev.so shared lib.
+  (meta define pure? #f)
+
   (define load-libev
     (load-shared-object "libev.so.4"))
-  (define load-libev-ffi
-    (load-shared-object (locate-library-object "ev/libchez-ffi.so")))
-
-  (define memset
-    (foreign-procedure "memset" (void* int size_t) void*))
 
   (c-bitmap evmask
    (UNDEF		#xFFFFFFFF)
@@ -160,198 +209,446 @@
     (ANY	1))
 
   (define-ftype ev-loop*		void*)
-  (define-ftype ev-watcher-list*	void*)
   ;; tv-tstamp is a 'double' unless EV_TSTAMP_T overrides it.
   (define-ftype ev-tstamp		double)
-  ;; !!! ev_stat embeds two 'struct stat' objects which have a number of members and are OS dependant.
-  ;; Magic number 144 = sizeof(struct stat): generated via platform.c (sizeof-struct-stat).
-  (define-ftype struct-stat (array 144 unsigned-8))
-  ;; !!! For Linux, this is currently an int: see <bits/types.h>
-  (define-ftype sig-atomic-t int)
-
-  ;; field-acl:
-  ;;  - private is readable anytime and not writable by us, ie. internal to libev
-  ;;  - ro is readable anytime, but only writable when watcher is inactive
-  ;;  - rw is readable and writable anytime
-  ;;  - unused is ignored, but only generated in the ftype struct for padding
-  ;;  - (ref ev-acl) means reference (ftype-&ref) to embedded struct to be returned due to
-  ;;    ftype-ref only working on simple/atomic types, not structs
-  (define-syntax define-ev-watcher
-    (lambda (x)
-      (syntax-case x ()
-        [(_ type-name ptr-type-name (field-name field-type field-acl) ...)
-         (with-syntax ([(getters ...) 
-                        (map
-                          (lambda (syn access)
-                            (cond
-                              [(eq? access 'unused)
-                               #'(begin)]
-                              [(pair? access)
-                               #`(define #,(make-id-syntax #'type-name #'type-name "-" syn)
-                                    (lambda (ptr)
-                                      (ftype-&ref type-name (#,syn) ptr)))]
-                              [else
-                                #`(define #,(make-id-syntax #'type-name #'type-name "-" syn)
-                                    (lambda (ptr)
-                                      (ftype-ref type-name (#,syn) ptr)))]))
-                          #'(field-name ...) (map syntax->datum #'(field-acl ...)))]
-                       [(setters ...)
-                        (map
-                          (lambda (syn access)
-                            (cond
-                              [(or (eq? access 'private) (eq? access 'unused) (pair? access))
-                               ;; NOTE: setters are never generated for (ref ev-acl), instead get the member
-                               ;; reference and use setters on that.
-                               #'(begin)]
-                              [else
-                                #`(define #,(make-id-syntax #'type-name #'type-name "-" syn "-set!")
-                                    (lambda (ptr val)
-                                      (ftype-set! type-name (#,syn) ptr val)))]))
-                          #'(field-name ...) (map syntax->datum #'(field-acl ...)))]
-                       [allocz-name (make-id-syntax #'type-name "allocz-" #'type-name)]
-                       )
-         #'(begin
-             (define-ftype type-name
-               (struct
-                 (field-name field-type)
-                 ...))
-             (define-ftype ptr-type-name (* type-name))
-             getters ...
-             setters ...
-             (define allocz-name
-               (lambda ()
-                 ;; Allocate and zero watcher struct memory.
-                 (let ([mem (foreign-alloc (ftype-sizeof type-name))])
-                   (memset mem 0 (ftype-sizeof type-name))
-                   (make-ftype-pointer type-name mem))))))])))
-
-  (define-syntax define-ev-watcher-base
-    (syntax-rules ()
-      [(_ type-name ptr-type-name field-def* ...)
-       (define-ev-watcher type-name ptr-type-name
-         ;; EV_WATCHER(type)
-         (active	int	private)
-         (pending	int	private)
-         ;; EV_DECL_PRIORITY
-         (priority	int	private)
-         ;; EV_COMMON
-         (data	void*	rw)
-         ;; EV_CB_DECLARE(type)
-         (cb	(* (function (ev-loop* (* type-name) int) void))	private)
-         ;; type specific field definitions..
-         field-def*
-         ...)]))
-
-  (define-syntax define-ev-watcher-list
-    (syntax-rules ()
-      [(_ type-name ptr-type-name field-def* ...)
-       (define-ev-watcher-base type-name ptr-type-name
-         (next	ev-watcher-list*	private)
-         field-def*
-         ...)]))
-
-  (define-syntax define-ev-watcher-time
-    (syntax-rules ()
-      [(_ type-name ptr-type-name field-def* ...)
-       (define-ev-watcher-base type-name ptr-type-name
-         (at	ev-tstamp	private)
-         field-def*
-         ...)]))
-
-  ;; event watcher types.
-  (define-ev-watcher-list ev-io-t ev-io-t*
-    (fd		int	ro)
-    (events	int	ro)
-    )
-
-  (define-ev-watcher-time ev-timer-t ev-timer-t*
-    (repeat	ev-tstamp	rw)
-    )
-
-  (define-ev-watcher-time ev-periodic-t ev-periodic-t*
-    (offset		ev-tstamp	rw)
-    (interval		ev-tstamp	rw)
-    (reschedule-cb	(* (function ((* ev-periodic-t) ev-tstamp) ev-tstamp))	rw)
-    )
-
-  (define-ev-watcher-list ev-signal-t ev-signal-t*
-    (signum	int	ro)
-    )
-
-  (define-ev-watcher-list ev-child-t ev-child-t*
-    (flags	int	private)
-    (pid	int	ro)
-    (rpid	int	rw)
-    (rstatus	int	rw)
-    )
-
-  (define-ev-watcher-list ev-stat-t ev-stat-t*
-    (timer	ev-timer-t	(ref private))
-    (interval	ev-tstamp	ro)
-    (path	void*		ro)	; XXX const char*, not void*
-    (prev	struct-stat	(ref ro))
-    (attr	struct-stat	(ref ro))
-    (wd		int		private)	; acl not specified in header for this field
-    )
-
-  (define-ev-watcher ev-idle-t ev-idle-t*)
-
-  (define-ev-watcher ev-prepare-t ev-prepare-t*)
-
-  (define-ev-watcher ev-check-t ev-check-t*)
-
-  (define-ev-watcher ev-fork-t ev-fork-t*)
-
-  (define-ev-watcher ev-cleanup-t ev-cleanup-t*)
-
-  (define-ev-watcher ev-embed-t ev-embed-t*
-    (other	ev-loop*	ro)
-    (io		ev-io-t		(ref private))
-    (prepare	ev-prepare-t	(ref private))
-    (check	ev-check-t	unused)
-    (timer	ev-timer-t	unused)
-    (periodic	ev-periodic-t	unused)
-    (idle	ev-idle-t	unused)
-    (fork	ev-fork-t	(ref private))
-    (cleanup	ev-cleanup-t	unused)
-    )
-
-  (define-ev-watcher ev-async-t ev-async-t*
-    (sent	sig-atomic-t	(ref private))
-    )
-
-   ;; TODO need to look at these properly. These are parent types.
-  (define-ftype ev-watcher*	void*)
-  (define-ftype ev-watcher-time*	void*)
-
-  ;; event callback types.
-  (define-ftype ev-io-cb-t		(function (ev-loop* (* ev-io-t) int)			void))
-  (define-ftype ev-timer-cb-t		(function (ev-loop* (* ev-timer-t) int)		void))
-  (define-ftype ev-periodic-cb-t	(function (ev-loop* (* ev-periodic-t) int)		void))
-  (define-ftype ev-signal-cb-t		(function (ev-loop* (* ev-signal-t) int)		void))
-  (define-ftype ev-child-cb-t		(function (ev-loop* (* ev-child-t) int)		void))
-  (define-ftype ev-stat-cb-t		(function (ev-loop* (* ev-stat-t) int)		void))
-  (define-ftype ev-idle-cb-t		(function (ev-loop* (* ev-idle-t) int)		void))
-  (define-ftype ev-prepare-cb-t		(function (ev-loop* (* ev-prepare-t) int)		void))
-  (define-ftype ev-check-cb-t		(function (ev-loop* (* ev-check-t) int)		void))
-  (define-ftype ev-embed-cb-t		(function (ev-loop* (* ev-embed-t) int)		void))
-  (define-ftype ev-fork-cb-t		(function (ev-loop* (* ev-fork-t) int)		void))
-  (define-ftype ev-cleanup-cb-t		(function (ev-loop* (* ev-fork-t) int)		void))
-  (define-ftype ev-async-cb-t		(function (ev-loop* (* ev-async-t) int)		void))
-
-  (define-ftype ev-periodic-rcb-t	(function ((* ev-periodic-t) ev-tstamp)		ev-tstamp))
 
   ;; memory alloc function prototype.
   (define-ftype realloc-fn	(function (void* long)	void*))
   (define-ftype msg-cb-fn	(function (string)	void))
   (define-ftype ev-loop-callback (function (ev-loop*)	void))
 
+  (meta-cond
+    [pure?
+      ;;;; This section contains the pure scheme portion of these bindings.
+      ;;;; It implements:
+      ;;;; - the C watcher structs as ftypes as well as getter/setter functions for its fields
+      ;;;; - struct memory allocators
+      ;;;; - constructors: ie, alloc + init = make
+      ;;;; - specialised watcher type field setters
+      ;;;; - high level watcher context constructors.
+      ;;;;
+      ;;;; ev-TYPE-init functions are *not* (yet?) implemented.
+      ;;;;
+      ;;;; Scheme code that re-implements a C macro should contain a snippet of that code
+      ;;;; prefixed by CREF to show what the scheme should do.
+      ;;;; It may also help spot when/if that scheme code goes stale..
+
+      ;; Hardcode these to the values in ev.h to keep track of which version this is developed for.
+      (define ev-version-major-def (lambda () 4))
+      (define ev-version-minor-def (lambda () 33))
+
+      (define memset
+        (foreign-procedure "memset" (void* int size_t) void*))
+
+      (define-ftype ev-watcher-list*	void*)
+      ;; !!! ev_stat embeds two 'struct stat' objects which have a number of members and are OS dependant.
+      ;; Magic number 144 = sizeof(struct stat): generated via platform.c (sizeof-struct-stat).
+      (define-ftype struct-stat (array 144 unsigned-8))
+      ;; !!! For Linux, this is currently an int: see <bits/types.h>
+      (define-ftype sig-atomic-t int)
+
+      ;; [syntax] define-ev-type define ftype and base functions for an ev type struct.
+      ;; field-acl:
+      ;;  - private is readable anytime and not writable by us, ie. internal to libev
+      ;;    However, we'll create setters for these as we're implementing our own init funcs.
+      ;;  - ro is readable anytime, but only writable when watcher is inactive
+      ;;  - rw is readable and writable anytime
+      ;;  - unused is ignored, but only generated in the ftype struct for padding
+      ;;  - (ref ev-acl) means reference (ftype-&ref) to embedded struct to be returned due to
+      ;;    ftype-ref only working on simple/atomic types, not structs
+
+      (define-syntax ev-type-builder
+        (lambda (x)
+          (syntax-case x ()
+            [(_ type-name type-name-t ev-TYPE-cb-t (init-args* ...) (field-name field-type field-acl) ...)
+             (with-syntax ([(ev-TYPE-FIELD-get ...) 
+                            (map
+                              (lambda (syn access)
+                                (define get-name
+                                  (make-id-syntax #'type-name #'type-name "-" syn "-get"))
+                                (cond
+                                  [(eq? access 'unused)
+                                   #'(begin)]
+                                  [(pair? access)
+                                   #`(define #,get-name
+                                       (lambda (ptr)
+                                         (ftype-&ref type-name-t (#,syn) ptr)))]
+                                  [else
+                                    #`(define #,get-name
+                                        (lambda (ptr)
+                                          (ftype-ref type-name-t (#,syn) ptr)))]))
+                              #'(field-name ...) (map syntax->datum #'(field-acl ...)))]
+                           [(ev-TYPE-FIELD-set ...)
+                            (map
+                              (lambda (syn type access)
+                                (define setter-funcname (make-id-syntax #'type-name #'type-name "-" syn "-set"))
+                                (cond
+                                  [(or (eq? access 'unused) (pair? access))
+                                       ;; NOTE: setters are never generated for (ref ev-acl), instead get the member
+                                       ;; reference and use setters on that.
+                                       #'(begin)]
+                                  [(eq? type 'ev-tstamp)
+                                   ;; Generate ev-tstamp setters that cast integers to flonums.
+                                   #`(define #,setter-funcname
+                                       (lambda (ptr val)
+                                         (ftype-set! type-name-t (#,syn) ptr (if (flonum? val) val (fixnum->flonum val)))))]
+                                  [else
+                                    #`(define #,setter-funcname
+                                        (lambda (ptr val)
+                                          (ftype-set! type-name-t (#,syn) ptr val)))]))
+                                #'(field-name ...)
+                                (map syntax->datum #'(field-type ...))
+                                (map syntax->datum #'(field-acl ...)))]
+                            [allocz-ev-TYPE (make-id-syntax #'type-name "allocz-" #'type-name)]
+                            [ev-TYPE-init (make-id-syntax #'type-name #'type-name "-init")]
+                            [make-ev-TYPE (make-id-syntax #'type-name "make-" #'type-name)]
+                            [ev-TYPE-set (make-id-syntax #'type-name #'type-name "-set")]
+                            [ev-TYPE-start (make-id-syntax #'type-name #'type-name "-start")]
+                            [ev-TYPE-stop (make-id-syntax #'type-name #'type-name "-stop")])
+             #'(begin
+                 (define-ftype
+                   [type-name-t
+                     (struct
+                       (field-name field-type)
+                       ...)]
+                   [ev-TYPE-cb-t
+                     (function (ev-loop* (* type-name-t) int) void)])
+                 ev-TYPE-FIELD-get ...
+                 ev-TYPE-FIELD-set ...
+                 (define allocz-ev-TYPE
+                   (lambda ()
+                     ;; Allocate and zero watcher struct memory.
+                     (let ([mem (foreign-alloc (ftype-sizeof type-name-t))])
+                       (memset mem 0 (ftype-sizeof type-name-t))
+                       (make-ftype-pointer type-name-t mem))))
+                 (define ev-TYPE-init
+                   (lambda (ev-t cb)
+                     ;; CREF: do {			\
+                     ;;   ((ev_watcher *)(void *)(ev))->active  =	\
+                     ;;   ((ev_watcher *)(void *)(ev))->pending = 0;	\
+                     ;;   ev_set_priority ((ev), 0);			\
+                     ;;   ev_set_cb ((ev), cb_);			\
+                     ;; } while (0)
+                     (ftype-set! type-name-t (active) ev-t 0)
+                     (ftype-set! type-name-t (pending) ev-t 0)
+                     ;; EV_DECL_PRIORITY
+                     ;; XXX ev_set_priority() does nothing if EV_MINPRI == EV_MAXPRI !!!
+                     (ftype-set! type-name-t (priority) ev-t 0)
+                     (ftype-set! type-name-t (cb) ev-t cb)))
+                 (define make-ev-TYPE
+                   (lambda (init-args* ... cb)
+                     (let ([ptr (allocz-ev-TYPE)])
+                       (ev-TYPE-init ptr cb)
+                       (ev-TYPE-set ptr init-args* ...)
+                       ptr)))
+                 (define type-name
+                   (lambda (init-args* ... cb)
+                     (let* ([fp-callback (make-ftype-pointer
+                                           ev-TYPE-cb-t
+                                           (lambda (loop w rev)
+                                             (parameterize ([current-loop loop])
+                                               (cb w rev))))]
+                            [watcher (make-ev-TYPE init-args* ... fp-callback)]
+                            [wcxt (make-wc watcher fp-callback (lambda () (ev-TYPE-stop watcher)))])
+                       ;; Note: (locked-object? (foreign-callable-code-object (ftype-pointer-address fp-callback))) => #t
+                       (watcher-guardian wcxt)
+                       (ev-TYPE-start watcher)
+                       ;; Return watcher-context. Caller should keep a reference to this and/or manage (collect-watchers).
+                       ;; FIXME caller cannot pass wcxt to (stop-<event-type>).
+                       wcxt)))))])))
+
+      (define-syntax define-ev-type
+        (lambda (x)
+          (syntax-case x ()
+            [(_ type-name init-args field-def* ...)
+             (with-syntax ([type-name-t (make-id-syntax #'type-name #'type-name "-t")]
+                           [ev-TYPE-cb-t (make-id-syntax #'type-name #'type-name "-cb-t")])
+               #'(begin
+                   (ev-type-builder type-name type-name-t ev-TYPE-cb-t init-args
+                     ;; EV_WATCHER(type)
+                     (active	int	private)
+                     (pending	int	private)
+                     ;; EV_DECL_PRIORITY
+                     ;; TODO priority will not be defined if EV_MINPRI == EV_MAXPRI !!!
+                     (priority	int	private)
+                     ;; EV_COMMON
+                     (data	void*	rw)
+                     ;; EV_CB_DECLARE(type)
+                     (cb	(* ev-TYPE-cb-t)	private)
+                     ;; type specific field definitions..
+                     field-def*
+                     ...)))])))
+
+      (define-syntax define-ev-type-list
+        (syntax-rules ()
+          [(_ type-name init-args field-def* ...)
+           (define-ev-type type-name init-args
+             (next	ev-watcher-list*	private)
+             field-def*
+             ...)]))
+
+      (define-syntax define-ev-type-time
+        (syntax-rules ()
+          [(_ type-name init-args field-def* ...)
+           (define-ev-type type-name init-args
+             (at	ev-tstamp	private)
+             field-def*
+             ...)]))
+
+      (define-syntax nop
+        (syntax-rules ()
+          [(_ name arg* ...)
+           (define name
+             (lambda args
+               (void)))]))
+
+      ;; Event watcher typedef and fields setter function defines.
+      ;; The field setter function is useful in that it abstracts setting all the user facing event specific
+      ;; fields. ie, combining these with allocz-TYPE + ev-init gives an easy make-TYPE function.
+      ;; These could've been generated except some do custom/non-obvious things. eg, ev-io-set & _IOFDSET.
+      ;; Keep these out of the grand syntax generator for readability and (hopefully) easier maintenance.
+      ;; At least for now...
+      (define-ev-type-list ev-io (fd events)
+        (fd		int	ro)
+        (events	int	ro))
+      (define ev-io-set
+        (lambda (ev-t fd events)
+          ;; CREF: do { (ev)->fd = (fd_); (ev)->events = (events_) | EV__IOFDSET; } while (0)
+          (ev-io-fd-set ev-t fd)
+          (ev-io-events-set ev-t (bitwise-ior events (evmask '_IOFDSET)))))
+
+      (define-ev-type-time ev-timer (after repeat)
+        (repeat	ev-tstamp	rw))
+      (define ev-timer-set
+        (lambda (ev-t after repeat)
+          ;; CREF: do { ((ev_watcher_time *)(ev))->at = (after_); (ev)->repeat = (repeat_); } while (0)
+          (ev-timer-at-set ev-t after)
+          (ev-timer-repeat-set ev-t repeat)))
+
+      (define-ev-type-time ev-periodic (offset interval rcb)
+        (offset	ev-tstamp	rw)
+        (interval	ev-tstamp	rw)
+        (rcb		(* ev-periodic-cb-t)	rw))
+      (define ev-periodic-set
+        (lambda (ev-t offset interval reschedule-cb)
+          ;; CREF: do { (ev)->offset = (ofs_); (ev)->interval = (ival_); (ev)->reschedule_cb = (rcb_); } while (0)
+          (ev-periodic-offset-set ev-t offset)
+          (ev-periodic-interval-set ev-t interval)
+          (ev-periodic-rcb-set ev-t reschedule-cb)))
+
+      (define-ev-type-list ev-signal (signum)
+        (signum	int	ro))
+      (define ev-signal-set
+        (lambda (ev-t signum)
+          ;; CREF: do { (ev)->signum = (signum_); } while (0)
+          (ev-signal-signum-set ev-t signum)))
+
+      (define-ev-type-list ev-child (pid trace)
+        (flags	int	private)
+        (pid		int	ro)
+        (rpid		int	rw)
+        (rstatus	int	rw))
+      ;; `trace` must be a value in (ev-child-trace).
+      (define ev-child-set
+        (lambda (ev-t pid trace)
+          ;; CREF: do { (ev)->pid = (pid_); (ev)->flags = !!(trace_); } while (0)
+          ;; !!trace is a C trick to convert the integer value to 0 or 1.
+          (ev-child-pid-set ev-t pid)
+          (ev-child-flags-set ev-t trace)))
+
+      (define-ev-type-list ev-stat (path interval)
+        (timer	ev-timer-t	(ref private))
+        (interval	ev-tstamp	ro)
+        (path		void*		ro)	; FIXME should be const char*, not void*
+        (prev		struct-stat	(ref ro))
+        (attr		struct-stat	(ref ro))
+        (wd		int		private)	; acl not specified in header for this field
+        )
+      (define ev-stat-set
+        (lambda (ev-t path interval)
+          ;; CREF: do { (ev)->path = (path_); (ev)->interval = (interval_); (ev)->wd = -2; } while (0)
+          (ev-stat-path-set ev-t path)
+          (ev-stat-interval-set ev-t interval)
+          (ev-stat-wd-set ev-t -2)))
+
+      (define-ev-type ev-idle ())
+      ;; CREF: /* nop, yes, this is a serious in-joke */
+      (nop ev-idle-set)
+
+      (define-ev-type ev-prepare ())
+      ;; CREF: /* nop, yes, this is a serious in-joke */
+      (nop ev-prepare-set)
+
+      (define-ev-type ev-check ())
+      ;; CREF: /* nop, yes, this is a serious in-joke */
+      (nop ev-check-set)
+
+      (define-ev-type ev-fork ())
+      ;; CREF: /* nop, yes, this is a serious in-joke */
+      (nop ev-fork-set)
+
+      (define-ev-type ev-cleanup ())
+      ;; CREF: /* nop, yes, this is a serious in-joke */
+      (nop ev-cleanup-set)
+
+      (define-ev-type ev-embed (other)
+        (other	ev-loop*	ro)
+        (io		ev-io-t		(ref private))
+        (prepare	ev-prepare-t	(ref private))
+        (check	ev-check-t	unused)
+        (timer	ev-timer-t	unused)
+        (periodic	ev-periodic-t	unused)
+        (idle		ev-idle-t	unused)
+        (fork		ev-fork-t	(ref private))
+        (cleanup	ev-cleanup-t	unused))
+      (define ev-embed-set
+        (lambda (ev-t other)
+          ;; CREF: do { (ev)->other = (other_); } while (0)
+          (ev-embed-other-set ev-t other)))
+
+      (define-ev-type ev-async ()
+        (sent	sig-atomic-t	(ref private)))
+      ;; CREF: /* nop, yes, this is a serious in-joke */
+      (nop ev-async-set)
+
+      (define-ftype ev-periodic-rcb-t	(function ((* ev-periodic-t) ev-tstamp)		ev-tstamp))
+
+      ;;;; This section contains pure scheme re-implementations of libev ev.h C-macros.
+
+      (define ev-io-modify
+        (lambda (ev-t events)
+          ;; CREF: do { (ev)->events = (ev)->events & EV__IOFDSET | (events_); } while (0)
+          ;; bitwise & (AND) has higher precedence than bitwise | (OR), so this looks
+          ;; like it disables all existing events except IOFDSET and enables new events.
+          (ev-io-events-set ev-t (bitwise-ior events (evmask '_IOFDSET)))))
+
+      (define ev-watcher-is-active
+        (lambda (watcher)
+          ;; CREF: (0 + ((ev_watcher *)(void *)(ev))->active) /* ro, true when the watcher has been started */
+          ;; HACK: Always cast to an ev-io-t, this gets around ftypes structs not having parents.
+          ;; This is safe so long as all our struct types share the same base field layout.
+          (let ([ptr (make-ftype-pointer ev-io-t (ftype-pointer-address watcher))])
+            (ev-io-active-get ptr))))
+      ]
+  [else
+
+    ;;;; ev-ffi bindings.
+
+    (define load-libev-ffi
+      (load-shared-object (locate-library-object "ev/libchez-ffi.so")))
+
+    ;; TODO need to look at these properly. These are parent types.
+    (define-ftype ev-watcher*	void*)
+    (define-ftype ev-watcher-time*	void*)
+
+    (define-syntax define-watcher
+      (lambda (x)
+        (syntax-case x ()
+          [(k watcher-name args ...)
+           (with-syntax ([make-watcher-func (make-id-syntax #'k "make-" #'watcher-name)]
+                         [start-watcher-func (make-id-syntax #'k #'watcher-name "-start")]
+                         [stop-watcher-func (make-id-syntax #'k #'watcher-name "-stop")]
+                         [ev-TYPE-t (make-id-syntax #'k #'watcher-name "-t")]
+                         [ev-TYPE-cb-t (make-id-syntax #'k #'watcher-name "-cb-t")])
+             #'(begin
+                 (define-ftype
+                   [ev-TYPE-t (struct)]
+                   [ev-TYPE-cb-t (function (ev-loop* (* ev-TYPE-t) int) void)])
+                 (define watcher-name
+                   (lambda (args ... callback-func)
+                     (let* ([fp-callback (make-ftype-pointer
+                                           ev-TYPE-cb-t
+                                           (lambda (loop w rev)
+                                             (parameterize ([current-loop loop])
+                                               (callback-func w rev))))]
+                            [watcher (make-watcher-func args ... fp-callback)]
+                            [wcxt (make-wc watcher fp-callback (lambda () (stop-watcher-func watcher)))])
+                       ;; Note: (locked-object? (foreign-callable-code-object (ftype-pointer-address fp-callback))) => #t
+                       (watcher-guardian wcxt)
+                       (start-watcher-func watcher)
+                       ;; Return watcher-context. Caller should keep a reference to this and/or manage (collect-watchers).
+                       ;; FIXME caller cannot pass wcxt to (stop-<event-type>).
+                       wcxt)))))])))
+
+    (define-syntax batch
+      (syntax-rules ()
+        [(_ command (def ...) ...)
+         (begin
+           (command def ...)
+           ...)]))
+
+    (batch define-watcher
+      (ev-io fd events)
+      (ev-timer after repeat)
+      (ev-periodic offset interval rcb)
+      (ev-signal signum)
+      (ev-child pid trace)
+      (ev-stat path interval)
+      (ev-idle)
+      (ev-prepare)
+      (ev-check)
+      (ev-embed other)
+      (ev-fork)
+      (ev-cleanup)
+      (ev-async))
+
+    (define-ftype ev-periodic-rcb-t	(function ((* ev-periodic-t) ev-tstamp)		ev-tstamp))
+
+    ;;; libev-ffi extensions. See ev/ev-ffi.c
+    (c-function
+      (ev-version-major-def	()		int)
+      (ev-version-minor-def	()		int)
+      ;; raw constructors (internal only).
+      (make-ev-io		(int int (* ev-io-cb-t))	(* ev-io-t))
+      (make-ev-timer	(ev-tstamp ev-tstamp (* ev-timer-cb-t))	(* ev-timer-t))
+      (make-ev-periodic	(ev-tstamp ev-tstamp (* ev-periodic-rcb-t) (* ev-periodic-cb-t))	(* ev-periodic-t))
+      (make-ev-signal	(int (* ev-signal-cb-t))	(* ev-signal-t))
+      (make-ev-child	(int int (* ev-child-cb-t))	(* ev-child-t))
+      (make-ev-stat	(string ev-tstamp (* ev-stat-cb-t))	(* ev-stat-t))
+      (make-ev-idle	((* ev-idle-cb-t))	(* ev-idle-t))
+      (make-ev-prepare	((* ev-prepare-cb-t))	(* ev-prepare-t))
+      (make-ev-check	((* ev-check-cb-t))	(* ev-check-t))
+      (make-ev-embed	(ev-loop* (* ev-embed-cb-t))	(* ev-embed-t))
+      (make-ev-fork	((* ev-fork-cb-t))	(* ev-fork-t))
+      (make-ev-cleanup	((* ev-cleanup-cb-t))	(* ev-cleanup-t))
+      (make-ev-async	((* ev-async-cb-t))	(* ev-async-t))
+      ;; watcher macro wrappers
+      (ev-io-events-set		((* ev-io-t) int)	void)
+      ;; watcher accessors
+      (ev-io-fd-get		((* ev-io-t))	int)
+      (ev-io-events-get		((* ev-io-t))	int)
+      (ev-timer-repeat-get		((* ev-timer-t))	ev-tstamp)
+      (ev-timer-repeat-set		((* ev-timer-t) ev-tstamp) void)
+      (ev-periodic-offset-get	((* ev-periodic-t)) ev-tstamp)
+      (ev-periodic-offset-set	((* ev-periodic-t) ev-tstamp) void)
+      (ev-periodic-interval-get	((* ev-periodic-t)) ev-tstamp)
+      (ev-periodic-interval-set	((* ev-periodic-t) ev-tstamp) void)
+      (ev-periodic-rcb-get		((* ev-periodic-t)) (* ev-periodic-rcb-t))
+      (ev-periodic-rcb-set		((* ev-periodic-t) (* ev-periodic-rcb-t)) void)
+      (ev-signal-signum-get	((* ev-signal-t))	int)
+      (ev-child-pid-get		((* ev-child-t))	int)
+      (ev-child-rpid-get		((* ev-child-t))	int)
+      (ev-child-rpid-set		((* ev-child-t) int) void)
+      (ev-child-rstatus-get	((* ev-child-t))	int)
+      (ev-child-rstatus-set	((* ev-child-t) int) void)
+      ;; TODO ev-stat getters.
+      (ev-embed-other-get		((* ev-embed-t)) ev-loop*)
+      (ev-async-pending-get	((* ev-async-t)) boolean)
+
+      (ev-watcher-is-active	(ev-watcher*)	boolean)
+
+      ;; TODO need to look at these. Note the ev-watcher types.
+      (ev-priority-get		(ev-watcher*) int)
+      (ev-priority-set		(ev-watcher* int) void)
+      (ev-periodic-at-get		(ev-watcher-time*) int)
+      ;; TODO ev-cb, ev-cb-set
+      )
+    ])
+
   ;; raw ev prototypes: those declared with underscores will be wrapped with scheme functions later.
   (c-function
    ;;;;;;; EV_PROTOTYPES
    ;; meta funcs
-   (ev-version-major-def	()		int)
-   (ev-version-minor-def	()		int)
    (ev-version-major		()		int)
    (ev-version-minor		()		int)
    (ev-supported-backends	()		unsigned)
@@ -360,60 +657,15 @@
    ;; time related
    (ev-time			()		ev-tstamp)
    (ev-sleep			(ev-tstamp)	void)
-   (ev_set_allocator	((* realloc-fn))	void)
-   (ev_set_syserr_cb	((* msg-cb-fn))		void)
-   (ev_default_loop	(int)			ev-loop*)
-   (ev_loop_new		(int)			ev-loop*)
+   (ev_set_allocator		((* realloc-fn))	void)
+   (ev_set_syserr_cb		((* msg-cb-fn))		void)
+   (ev_default_loop		(int)			ev-loop*)
+   (ev_loop_new			(int)			ev-loop*)
 
    ;; ev-break & ev-run use case-lambda, so leave outside the c-default-function section.
    (ev_break		(ev-loop* int)		void)
    (ev_run		(ev-loop* int)		boolean)
    (ev-feed-signal	(int)			void)
-   ;;; libev-ffi extensions.
-   ;; raw constructors (internal only).
-   (make-ev-io		(int int (* ev-io-cb-t))	(* ev-io-t))
-   (make-ev-timer	(ev-tstamp ev-tstamp (* ev-timer-cb-t))	(* ev-timer-t))
-   (make-ev-periodic	(ev-tstamp ev-tstamp (* ev-periodic-rcb-t) (* ev-periodic-cb-t))	(* ev-periodic-t))
-   (make-ev-signal	(int (* ev-signal-cb-t))	(* ev-signal-t))
-   (make-ev-child	(int int (* ev-child-cb-t))	(* ev-child-t))
-   (make-ev-stat	(string ev-tstamp (* ev-stat-cb-t))	(* ev-stat-t))
-   (make-ev-idle	((* ev-idle-cb-t))	(* ev-idle-t))
-   (make-ev-prepare	((* ev-prepare-cb-t))	(* ev-prepare-t))
-   (make-ev-check	((* ev-check-cb-t))	(* ev-check-t))
-   (make-ev-embed	(ev-loop* (* ev-embed-cb-t))	(* ev-embed-t))
-   (make-ev-fork	((* ev-fork-cb-t))	(* ev-fork-t))
-   (make-ev-cleanup	((* ev-cleanup-cb-t))	(* ev-cleanup-t))
-   (make-ev-async	((* ev-async-cb-t))	(* ev-async-t))
-   ;; watcher macro wrappers
-   (ev-io-events-set		((* ev-io-t) int)	void)
-   ;; watcher accessors
-   (ev-io-fd-get		((* ev-io-t))	int)
-   (ev-io-events-get		((* ev-io-t))	int)
-   (ev-timer-repeat-get		((* ev-timer-t))	ev-tstamp)
-   (ev-timer-repeat-set		((* ev-timer-t) ev-tstamp) void)
-   (ev-periodic-offset-get	((* ev-periodic-t)) ev-tstamp)
-   (ev-periodic-offset-set	((* ev-periodic-t) ev-tstamp) void)
-   (ev-periodic-interval-get	((* ev-periodic-t)) ev-tstamp)
-   (ev-periodic-interval-set	((* ev-periodic-t) ev-tstamp) void)
-   (ev-periodic-rcb-get		((* ev-periodic-t)) (* ev-periodic-rcb-t))
-   (ev-periodic-rcb-set		((* ev-periodic-t) (* ev-periodic-rcb-t)) void)
-   (ev-signal-signum-get	((* ev-signal-t))	int)
-   (ev-child-pid-get		((* ev-child-t))	int)
-   (ev-child-rpid-get		((* ev-child-t))	int)
-   (ev-child-rpid-set		((* ev-child-t) int) void)
-   (ev-child-rstatus-get	((* ev-child-t))	int)
-   (ev-child-rstatus-set	((* ev-child-t) int) void)
-   ;; TODO ev-stat getters.
-   (ev-embed-other-get		((* ev-embed-t)) ev-loop*)
-   (ev-async-pending-get	((* ev-async-t)) boolean)
-
-   (ev-watcher-is-active	(ev-watcher*)	boolean)
-
-   ;; TODO need to look at these. Note the ev-watcher types.
-   (ev-priority-get		(ev-watcher*) int)
-   (ev-priority-set		(ev-watcher* int) void)
-   (ev-periodic-at-get		(ev-watcher-time*) int)
-   ;; TODO ev-cb, ev-cb-set
    )
 
   (define ev-default-loop
@@ -569,52 +821,6 @@
                (display "free watcher: ")(display wcxt)(newline))
              (ev-free-watcher! wcxt)
              (loop (- i 1) (watcher-guardian)))))]))
-
-  (define-syntax define-watcher
-    (lambda (x)
-      (syntax-case x ()
-        [(k watcher-name args ...)
-         (with-syntax ([make-watcher-func (make-id-syntax #'k "make-" #'watcher-name)]
-                       [start-watcher-func (make-id-syntax #'k #'watcher-name "-start")]
-                       [stop-watcher-func (make-id-syntax #'k #'watcher-name "-stop")]
-                       [cb-func-type (make-id-syntax #'k #'watcher-name "-cb-t")])
-           #'(define watcher-name
-               (lambda (args ... callback-func)
-                 (let* ([fp-callback (make-ftype-pointer
-                                       cb-func-type
-                                       (lambda (loop w rev)
-                                         (parameterize ([current-loop loop])
-                                           (callback-func w rev))))]
-                        [watcher (make-watcher-func args ... fp-callback)]
-                        [wcxt (make-wc watcher fp-callback (lambda () (stop-watcher-func watcher)))])
-                   ;; Note: (locked-object? (foreign-callable-code-object (ftype-pointer-address fp-callback))) => #t
-                   (watcher-guardian wcxt)
-                   (start-watcher-func watcher)
-                   ;; Return watcher-context. Caller should keep a reference to this and/or manage (collect-watchers).
-                   ;; FIXME caller cannot pass wcxt to (stop-<event-type>).
-                   wcxt))))])))
-
-  (define-syntax batch
-    (syntax-rules ()
-      [(_ command (def ...) ...)
-       (begin
-         (command def ...)
-         ...)]))
-
-  (batch define-watcher
-    (ev-io fd events)
-    (ev-timer after repeat)
-    (ev-periodic offset interval rcb)
-    (ev-signal signum)
-    (ev-child pid trace)
-    (ev-stat path interval)
-    (ev-idle)
-    (ev-prepare)
-    (ev-check)
-    (ev-embed other)
-    (ev-fork)
-    (ev-cleanup)
-    (ev-async))
 
   (define-syntax ev-ms
     (syntax-rules ()
