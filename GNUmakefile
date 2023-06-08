@@ -9,6 +9,7 @@
 
 # Path to chez scheme executable.
 SCHEME = /usr/bin/chez-scheme
+SED = /bin/sed
 
 # Install destination directory. This should be an object directory contained in (library-directories).
 # eg, set in CHEZSCHEMELIBDIRS environment variable.
@@ -103,3 +104,9 @@ clean-install:
 	$(RM) $(IFFIOBJ) $(IFFILIB) $(ITOPOBJ) $(ITOPWPO) $(ISUBOBJ) $(ISUBWPO) $(ITOPSRC) $(ISUBSRC)
 
 clean-all: clean clean-install
+
+pure.scm: $(TOPSRC)
+	$(SED) -n '/PURE_TEST_START/,/PURE_TEST_END/w $@' $<
+
+test: pure.scm test_pure.ss $(FFILIB)
+	./test_pure.ss

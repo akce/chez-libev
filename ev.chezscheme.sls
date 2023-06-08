@@ -67,8 +67,8 @@
      (ev-periodic-offset-set ev-periodic-offset-set!)
      (ev-periodic-interval-get ev-periodic-interval)
      (ev-periodic-interval-set ev-periodic-interval-set!)
-     (ev-periodic-rcb-get ev-periodic-rcb)
-     (ev-periodic-rcb-set ev-periodic-rcb-set!))
+     (ev-periodic-reschedule-cb-get ev-periodic-reschedule-cb)
+     (ev-periodic-reschedule-cb-set ev-periodic-reschedule-cb-set!))
    ev-periodic-start ev-periodic-stop ev-periodic-again
 
    ev-signal
@@ -237,12 +237,17 @@
       (define ev-version-major-def (lambda () 4))
       (define ev-version-minor-def (lambda () 33))
 
+      ;;;; Keep these PURE_TEST markers, they're used by our test system.
+      ;; I prefer to keep this code inline instead of split out and included.
+      ;;;; PURE_TEST_START
       (define memset
         (foreign-procedure "memset" (void* int size_t) void*))
 
       (define-ftype ev-watcher-list*	void*)
       ;; !!! ev_stat embeds two 'struct stat' objects which have a number of members and are OS dependant.
-      ;; Magic number 144 = sizeof(struct stat): generated via platform.c (sizeof-struct-stat).
+      ;; Magic number 144 = sizeof(struct stat): generated via struct-stat-sizeof from libev-ffi.so, use 'make test'.
+      ;; Note that we cannot use a variable to define the ftype array size so make sure to keep the magic number in sync.
+      (define test:struct-stat-sizeof 144)
       (define-ftype struct-stat (array 144 unsigned-8))
       ;; !!! For Linux, this is currently an int: see <bits/types.h>
       (define-ftype sig-atomic-t int)
@@ -425,16 +430,17 @@
           (ev-timer-at-set ev-t after)
           (ev-timer-repeat-set ev-t repeat)))
 
-      (define-ev-type-time ev-periodic (offset interval rcb)
+      (define-ev-type-time ev-periodic (offset interval reschedule-cb)
         (offset	ev-tstamp	rw)
         (interval	ev-tstamp	rw)
-        (rcb		(* ev-periodic-cb-t)	rw))
+        ;; XXX double check this callback type. ev-periodic-reschedule-cb-t ??
+        (reschedule-cb		(* ev-periodic-cb-t)	rw))
       (define ev-periodic-set
         (lambda (ev-t offset interval reschedule-cb)
           ;; CREF: do { (ev)->offset = (ofs_); (ev)->interval = (ival_); (ev)->reschedule_cb = (rcb_); } while (0)
           (ev-periodic-offset-set ev-t offset)
           (ev-periodic-interval-set ev-t interval)
-          (ev-periodic-rcb-set ev-t reschedule-cb)))
+          (ev-periodic-reschedule-cb-set ev-t reschedule-cb)))
 
       (define-ev-type-list ev-signal (signum)
         (signum	int	ro))
@@ -511,7 +517,7 @@
       ;; CREF: /* nop, yes, this is a serious in-joke */
       (nop ev-async-set)
 
-      (define-ftype ev-periodic-rcb-t	(function ((* ev-periodic-t) ev-tstamp)		ev-tstamp))
+      (define-ftype ev-periodic-reschedule-cb-t	(function ((* ev-periodic-t) ev-tstamp)		ev-tstamp))
 
       ;;;; This section contains pure scheme re-implementations of libev ev.h C-macros.
 
@@ -529,6 +535,8 @@
           ;; This is safe so long as all our struct types share the same base field layout.
           (let ([ptr (make-ftype-pointer ev-io-t (ftype-pointer-address watcher))])
             (ev-io-active-get ptr))))
+      ;;;; PURE_TEST_END
+      ;;;; Keep these PURE_TEST markers, they're used by the verify system.
       ]
   [else
 
@@ -580,7 +588,7 @@
     (batch define-watcher
       (ev-io fd events)
       (ev-timer after repeat)
-      (ev-periodic offset interval rcb)
+      (ev-periodic offset interval reschedule-cb)
       (ev-signal signum)
       (ev-child pid trace)
       (ev-stat path interval)
@@ -592,7 +600,7 @@
       (ev-cleanup)
       (ev-async))
 
-    (define-ftype ev-periodic-rcb-t	(function ((* ev-periodic-t) ev-tstamp)		ev-tstamp))
+    (define-ftype ev-periodic-reschedule-cb-t	(function ((* ev-periodic-t) ev-tstamp)		ev-tstamp))
 
     ;;; libev-ffi extensions. See ev/ev-ffi.c
     (c-function
@@ -601,7 +609,7 @@
       ;; raw constructors (internal only).
       (make-ev-io		(int int (* ev-io-cb-t))	(* ev-io-t))
       (make-ev-timer	(ev-tstamp ev-tstamp (* ev-timer-cb-t))	(* ev-timer-t))
-      (make-ev-periodic	(ev-tstamp ev-tstamp (* ev-periodic-rcb-t) (* ev-periodic-cb-t))	(* ev-periodic-t))
+      (make-ev-periodic	(ev-tstamp ev-tstamp (* ev-periodic-reschedule-cb-t) (* ev-periodic-cb-t))	(* ev-periodic-t))
       (make-ev-signal	(int (* ev-signal-cb-t))	(* ev-signal-t))
       (make-ev-child	(int int (* ev-child-cb-t))	(* ev-child-t))
       (make-ev-stat	(string ev-tstamp (* ev-stat-cb-t))	(* ev-stat-t))
@@ -623,8 +631,8 @@
       (ev-periodic-offset-set	((* ev-periodic-t) ev-tstamp) void)
       (ev-periodic-interval-get	((* ev-periodic-t)) ev-tstamp)
       (ev-periodic-interval-set	((* ev-periodic-t) ev-tstamp) void)
-      (ev-periodic-rcb-get		((* ev-periodic-t)) (* ev-periodic-rcb-t))
-      (ev-periodic-rcb-set		((* ev-periodic-t) (* ev-periodic-rcb-t)) void)
+      (ev-periodic-reschedule-cb-get		((* ev-periodic-t)) (* ev-periodic-reschedule-cb-t))
+      (ev-periodic-reschedule-cb-set		((* ev-periodic-t) (* ev-periodic-reschedule-cb-t)) void)
       (ev-signal-signum-get	((* ev-signal-t))	int)
       (ev-child-pid-get		((* ev-child-t))	int)
       (ev-child-rpid-get		((* ev-child-t))	int)
@@ -849,21 +857,21 @@
   (define-syntax ev-absolute-timer
     (syntax-rules ()
       [(_ time cb)
-       (ev-periodic (time->absolute-number time) 0 (make-ftype-pointer ev-periodic-rcb-t 0) cb)]))
+       (ev-periodic (time->absolute-number time) 0 (make-ftype-pointer ev-periodic-reschedule-cb-t 0) cb)]))
 
   (define-syntax ev-interval-timer
     (syntax-rules ()
       [(_ interval cb)
-       (ev-periodic 0. interval (make-ftype-pointer ev-periodic-rcb-t 0) cb)]
+       (ev-periodic 0. interval (make-ftype-pointer ev-periodic-reschedule-cb-t 0) cb)]
       [(_ offset interval cb)
-       (ev-periodic offset interval (make-ftype-pointer ev-periodic-rcb-t 0) cb)]))
+       (ev-periodic offset interval (make-ftype-pointer ev-periodic-reschedule-cb-t 0) cb)]))
 
   (define-syntax ev-manual-timer
     (syntax-rules ()
-      [(_ rcb cb)
-       ;; Consider wrapping rcb-t such that 'now' is converted to a time object
+      [(_ reschedule-cb cb)
+       ;; Consider wrapping reschedule-cb-t such that 'now' is converted to a time object
        ;; and return is assumed to be another time object that's converted to ev-tstamp.
-       (let* ([fp-rcb (make-ftype-pointer ev-periodic-rcb-t rcb)]
+       (let* ([fp-rcb (make-ftype-pointer ev-periodic-reschedule-cb-t rcb)]
               [wc (ev-periodic 0 0 fp-rcb cb)])
          (make-pwc
            (ev-watcher-address wc)
