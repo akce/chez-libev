@@ -245,10 +245,18 @@
 
       (define-ftype ev-watcher-list*	void*)
       ;; !!! ev_stat embeds two 'struct stat' objects which have a number of members and are OS dependant.
-      ;; Magic number 144 = sizeof(struct stat): generated via struct-stat-sizeof from libev-ffi.so, use 'make test'.
-      ;; Note that we cannot use a variable to define the ftype array size so make sure to keep the magic number in sync.
-      (define test:struct-stat-sizeof 144)
-      (define-ftype struct-stat (array 144 unsigned-8))
+      ;; Magic number generated via struct-stat-sizeof from libev-ffi.so, use 'make test'.
+      ;; Add output of `uname -a` (or equivalent) as first comment.
+      (meta-cond
+        [(eq? (machine-type) 'ta6le)
+         ;; Linux lethe.thyme 6.1.31_1 #1 SMP PREEMPT_DYNAMIC Wed May 31 05:53:37 UTC 2023 x86_64 GNU/Linux
+         (define-ftype struct-stat (array 144 unsigned-8))]
+        [(eq? (machine-type) 'ti3le)
+         ;; Linux palanthus.thyme 6.1.31_1 #1 SMP PREEMPT_DYNAMIC Wed May 31 05:53:37 UTC 2023 i686 GNU/Linux
+         (define-ftype struct-stat (array 88 unsigned-8))]
+        [else
+          ;; Should probably flag an error for unknown architectures.
+          (begin)])
       ;; !!! For Linux, this is currently an int: see <bits/types.h>
       (define-ftype sig-atomic-t int)
 

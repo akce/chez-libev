@@ -58,18 +58,6 @@
   [ev-async-sizeof			()	size_t]
   )
 
-(define-syntax test-sizeof
-  (syntax-rules ()
-    [(_ int c-sizeof)
-     (let ([lhs int]
-           [rhs (c-sizeof)])
-       (cond
-         [(= lhs rhs)
-          (format verbose? "sizeof ~a scheme ~d == c ~d~n" 'int lhs rhs)]
-         [else
-           (format (current-error-port) "sizeof ~a scheme ~d != c ~d~n" 'int lhs rhs)
-           (set! return-code 1)]))]))
-
 (define-syntax test-ftype-sizeof
   (syntax-rules ()
     [(_ ev-t c-sizeof)
@@ -94,7 +82,7 @@
            (format (current-error-port) "~a.~a scheme ~d != c ~d~n" 'ev-t 'field lhs rhs)
            (set! return-code 1)]))]))
 
-(test-sizeof test:struct-stat-sizeof struct-stat-sizeof)
+(test-ftype-sizeof struct-stat struct-stat-sizeof)
 (test-ftype-sizeof ev-io-t ev-io-sizeof)
 (test-ftype-sizeof ev-timer-t ev-timer-sizeof)
 (test-ftype-sizeof ev-periodic-t ev-periodic-sizeof)
