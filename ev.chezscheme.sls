@@ -1,6 +1,11 @@
 ;; libev bindings for Chez Scheme.
 ;; Written by Jerry 2019-2023.
 ;; SPDX-License-Identifier: Unlicense
+
+;; Sections of code delimited by uppercased pure_test_start/pure_test_end markers
+;; will be extracted into pure.scm and used for testing the pure scheme implementation.
+;; I prefer to keep this code inline instead of split out and included.
+
 (library (ev)
   (export
     ;; watcher context functions.
@@ -164,6 +169,7 @@
   (define load-libev
     (load-shared-object "libev.so.4"))
 
+  ;;;; PURE_TEST_START
   (c-bitmap evmask
    (UNDEF		#xFFFFFFFF)
    (READ		#x01)
@@ -220,6 +226,7 @@
   (define-ftype ev-loop*		void*)
   ;; tv-tstamp is a 'double' unless EV_TSTAMP_T overrides it.
   (define-ftype ev-tstamp		double)
+  ;;;; PURE_TEST_END
 
   ;; memory alloc function prototype.
   (define-ftype realloc-fn	(function (void* long)	void*))
@@ -246,8 +253,6 @@
       (define ev-version-major-def (lambda () 4))
       (define ev-version-minor-def (lambda () 33))
 
-      ;;;; Keep these PURE_TEST markers, they're used by our test system.
-      ;; I prefer to keep this code inline instead of split out and included.
       ;;;; PURE_TEST_START
       (define memset
         (foreign-procedure "memset" (void* int size_t) void*))
@@ -553,7 +558,6 @@
           (let ([ptr (make-ftype-pointer ev-io-t (ftype-pointer-address watcher))])
             (ev-io-active-get ptr))))
       ;;;; PURE_TEST_END
-      ;;;; Keep these PURE_TEST markers, they're used by the verify system.
       ]
   [else
 
