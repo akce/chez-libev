@@ -287,7 +287,9 @@
       (define-syntax ev-type-builder
         (lambda (x)
           (syntax-case x ()
-            [(_ type-name type-name-t ev-TYPE-cb-t (init-args* ...) (field-name field-type field-acl) ...)
+            [(_ type-name type-name-t ev-TYPE-cb-t (init-args* ...)
+                (extra-ftypes* ...)
+                (field-name field-type field-acl) ...)
              (with-syntax ([(ev-TYPE-FIELD-get ...) 
                             (map
                               (lambda (syn access)
@@ -339,7 +341,8 @@
                        (field-name field-type)
                        ...)]
                    [ev-TYPE-cb-t
-                     (function (ev-loop* (* type-name-t) int) void)])
+                     (function (ev-loop* (* type-name-t) int) void)]
+                   extra-ftypes* ...)
                  ev-TYPE-FIELD-get ...
                  ev-TYPE-FIELD-set ...
                  (define allocz-ev-TYPE
@@ -387,11 +390,11 @@
       (define-syntax define-ev-type
         (lambda (x)
           (syntax-case x ()
-            [(_ type-name init-args field-def* ...)
+            [(_ type-name init-args extra-ftypes field-def* ...)
              (with-syntax ([type-name-t (make-id-syntax #'type-name #'type-name "-t")]
                            [ev-TYPE-cb-t (make-id-syntax #'type-name #'type-name "-cb-t")])
                #'(begin
-                   (ev-type-builder type-name type-name-t ev-TYPE-cb-t init-args
+                   (ev-type-builder type-name type-name-t ev-TYPE-cb-t init-args extra-ftypes
                      ;; EV_WATCHER(type)
                      (active	int	private)
                      (pending	int	private)
@@ -408,16 +411,16 @@
 
       (define-syntax define-ev-type-list
         (syntax-rules ()
-          [(_ type-name init-args field-def* ...)
-           (define-ev-type type-name init-args
+          [(_ type-name init-args extra-ftypes field-def* ...)
+           (define-ev-type type-name init-args extra-ftypes
              (next	ev-watcher-list*	private)
              field-def*
              ...)]))
 
       (define-syntax define-ev-type-time
         (syntax-rules ()
-          [(_ type-name init-args field-def* ...)
-           (define-ev-type type-name init-args
+          [(_ type-name init-args extra-ftypes field-def* ...)
+           (define-ev-type type-name init-args extra-ftypes
              (at	ev-tstamp	private)
              field-def*
              ...)]))
@@ -436,6 +439,7 @@
       ;; Keep these out of the grand syntax generator for readability and (hopefully) easier maintenance.
       ;; At least for now...
       (define-ev-type-list ev-io (fd events)
+        ()
         (fd		int	ro)
         (events	int	ro))
       (define ev-io-set
@@ -445,6 +449,7 @@
           (ev-io-events-set ev-t (bitwise-ior events (evmask '_IOFDSET)))))
 
       (define-ev-type-time ev-timer (after repeat)
+        ()
         (repeat	ev-tstamp	rw))
       (define ev-timer-set
         (lambda (ev-t after repeat)
@@ -453,10 +458,10 @@
           (ev-timer-repeat-set ev-t repeat)))
 
       (define-ev-type-time ev-periodic (offset interval reschedule-cb)
+        ([ev-periodic-reschedule-cb-t (function ((* ev-periodic-t) ev-tstamp)		ev-tstamp)])
         (offset	ev-tstamp	rw)
         (interval	ev-tstamp	rw)
-        ;; XXX double check this callback type. ev-periodic-reschedule-cb-t ??
-        (reschedule-cb		(* ev-periodic-cb-t)	rw))
+        (reschedule-cb		(* ev-periodic-reschedule-cb-t)	rw))
       (define ev-periodic-set
         (lambda (ev-t offset interval reschedule-cb)
           ;; CREF: do { (ev)->offset = (ofs_); (ev)->interval = (ival_); (ev)->reschedule_cb = (rcb_); } while (0)
@@ -465,6 +470,7 @@
           (ev-periodic-reschedule-cb-set ev-t reschedule-cb)))
 
       (define-ev-type-list ev-signal (signum)
+        ()
         (signum	int	ro))
       (define ev-signal-set
         (lambda (ev-t signum)
@@ -472,6 +478,7 @@
           (ev-signal-signum-set ev-t signum)))
 
       (define-ev-type-list ev-child (pid trace)
+        ()
         (flags	int	private)
         (pid		int	ro)
         (rpid		int	rw)
@@ -485,6 +492,7 @@
           (ev-child-flags-set ev-t trace)))
 
       (define-ev-type-list ev-stat (path interval)
+        ()
         (timer	ev-timer-t	(ref private))
         (interval	ev-tstamp	ro)
         (path		void*		ro)	; FIXME should be const char*, not void*
@@ -499,27 +507,28 @@
           (ev-stat-interval-set ev-t interval)
           (ev-stat-wd-set ev-t -2)))
 
-      (define-ev-type ev-idle ())
+      (define-ev-type ev-idle () ())
       ;; CREF: /* nop, yes, this is a serious in-joke */
       (nop ev-idle-set)
 
-      (define-ev-type ev-prepare ())
+      (define-ev-type ev-prepare () ())
       ;; CREF: /* nop, yes, this is a serious in-joke */
       (nop ev-prepare-set)
 
-      (define-ev-type ev-check ())
+      (define-ev-type ev-check () ())
       ;; CREF: /* nop, yes, this is a serious in-joke */
       (nop ev-check-set)
 
-      (define-ev-type ev-fork ())
+      (define-ev-type ev-fork () ())
       ;; CREF: /* nop, yes, this is a serious in-joke */
       (nop ev-fork-set)
 
-      (define-ev-type ev-cleanup ())
+      (define-ev-type ev-cleanup () ())
       ;; CREF: /* nop, yes, this is a serious in-joke */
       (nop ev-cleanup-set)
 
       (define-ev-type ev-embed (other)
+        ()
         (other	ev-loop*	ro)
         (io		ev-io-t		(ref private))
         (prepare	ev-prepare-t	(ref private))
@@ -535,11 +544,10 @@
           (ev-embed-other-set ev-t other)))
 
       (define-ev-type ev-async ()
+        ()
         (sent	sig-atomic-t	(ref private)))
       ;; CREF: /* nop, yes, this is a serious in-joke */
       (nop ev-async-set)
-
-      (define-ftype ev-periodic-reschedule-cb-t	(function ((* ev-periodic-t) ev-tstamp)		ev-tstamp))
 
       ;;;; This section contains pure scheme re-implementations of libev ev.h C-macros.
 

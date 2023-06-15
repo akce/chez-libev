@@ -165,7 +165,6 @@
 ;; Bytes in memory created by pure scheme will be compared to that made by libev.
 (define rcb
   (make-ftype-pointer
-    ;; The fix is involved so do that separately.
     ev-periodic-reschedule-cb-t
     (lambda (w now)
       (+ now 22))))
@@ -179,10 +178,11 @@
     (2.0 6.5)
     (77 8.0)
     (9.5 33))
-  ;; TODO ev-periodic is broken, reschedule-cb should be an ev-periodic-reschedule-cb-t
-  #;(ev-periodic	; (offset interval reschedule-cb)
+  (ev-periodic	; (offset interval reschedule-cb)
     (10 5 rcb)
-    )
+    (2 4.5 rcb)
+    (1.0 7 rcb)
+    (3.5 9.9 rcb))
   (ev-signal	; (signum)
     (0)
     (1)
