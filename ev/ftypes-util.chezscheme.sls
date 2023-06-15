@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: Unlicense
 (library (ev ftypes-util)
   (export
-   c-function c-default-function
+   c-function ev-function ffi-wrapper-function
    c-bitmap c-enum
    ftype-offsetof
    locate-library-object
@@ -15,13 +15,25 @@
         (lambda (func str)
           (list->string (map func (string->list str)))))
 
+  (meta define syntax->ffi-name-string
+        (lambda (stx)
+          (datum->syntax
+            stx
+            (string-titlecase
+              (string-map (lambda (c)
+                            (if (char=? c #\-)
+                              #\_
+                              c))
+                          (symbol->string (syntax->datum stx)))))))
+
   (meta define syntax->function-name-string
         (lambda (stx)
           (datum->syntax
             stx
             (string-map (lambda (c)
-                          (if (eqv? c #\-)
-                              #\_ c))
+                          (if (char=? c #\-)
+                            #\_
+                            c))
                         (symbol->string (syntax->datum stx))))))
 
   (meta define has-ev-tstamp?
@@ -30,6 +42,17 @@
             (lambda (s)
               (eq? s 'ev-tstamp))
             (syntax->datum syms))))
+
+  ;; Returns a list of syntax objects so that zero or more default-args can be
+  ;; spliced into foreign function definitions.
+  ;; Note the return type is *not* a syntax object.
+  (meta define make-default-args
+        (lambda (x)
+          (syntax-case x ()
+            [(default-type default-value)
+             (list (list #'default-type #'default-value))]
+            [()
+             (list)])))
 
   (meta define make-ev-tstamp-args
         (lambda (syms)
@@ -46,63 +69,70 @@
                       v)))
               ds (generate-temporaries ds)))))
 
-  ;; [syntax] c-function: converts scheme-like function names to c-like function names before passing to foreign-procedure.
-  ;; ie, word separating hyphens are converted to underscores for c.
-  ;; eg,
-  ;; (c-function (str-length (string) int) ....)
-  ;; is converted to:
-  ;; (begin
-  ;;   (define str-length (foreign-procedure "str_length" (string) int))
-  ;;   ...)
+  ;; [syntax] c-function: base foreign function code generator.
+  ;; For simple cases, it will use foreign-procedure only, but will generate lambda
+  ;; wrappers when default args, client implementations and/or ev-tstamp args are present.
+  ;; Client implementations can call the foreign procedure via `c/func`. Note that `c/func`
+  ;; will hide any default-args (if present).
+  ;; This transformer is designed to be called by higher level syntax transformers.
   (define-syntax c-function
     (lambda (stx)
       (syntax-case stx ()
-        [(_ (name args return))
-         (has-ev-tstamp? #'args)
-         (with-syntax ([function-string (syntax->function-name-string #'name)]
+        [(_ name function-string default-args args return)
+         ;; Direct foreign-procedure version.
+         (and (null? (syntax->datum #'default-args)) (not (has-ev-tstamp? #'args)))
+         #'(define name
+             (foreign-procedure function-string args return))]
+        [(_ name function-string default-args args return)
+         ;; Function wrapper WITHOUT client lambda implementation.
+         (with-syntax ([((default-arg-type default-arg-call) ...) (make-default-args #'default-args)]
                        [((arg-type arg-name arg-call) ...) (make-ev-tstamp-args #'args)])
             #'(define name
-                (lambda (arg-name ...)
-                  (let ([fp (foreign-procedure function-string (arg-type ...) return)])
-                    (fp arg-call ...)))))]
-        [(_ (name args return))
-         (with-syntax ([function-string (syntax->function-name-string #'name)])
+                (let* ([fp (foreign-procedure function-string (default-arg-type ... arg-type ...) return)])
+                  (lambda (arg-name ...)
+                    (fp default-arg-call ... arg-call ...)))))]
+        [(_ name function-string default-args args return lambda-impl)
+         ;; Function wrapper WITH client lambda implementation.
+         (with-syntax ([c/func (datum->syntax #'name 'c/func)]
+                       [((default-arg-type default-arg-call) ...) (make-default-args #'default-args)]
+                       [((arg-type arg-name arg-call) ...) (make-ev-tstamp-args #'args)])
             #'(define name
-                (foreign-procedure function-string args return)))]
-        [(_ fdef ...)
-         #'(begin
-             (c-function fdef) ...)])))
+                (let* ([fp (foreign-procedure function-string (default-arg-type ... arg-type ...) return)]
+                       [c/func
+                         (lambda (arg-name ...)
+                           (fp default-arg-call ... arg-call ...))])
+                  lambda-impl)))])))
 
-  ;; [syntax] c-default-function: define c functions that take a default argument.
-  ;; This behaves like c-function, except it first takes a (type, instance) pair.
-  ;; c-default-function is useful for those c modules that define a bunch of functions that take
-  ;; the same struct as the first argument.
-  ;;
-  ;; The expansion of this definition:
-  ;; (c-default-function (type (current-parameter))
-  ;;   (func-name1 (arg1) int)
-  ;;   ...)
-  ;; will look like:
-  ;; (begin
-  ;;   (define func-name1
-  ;;     (let ([ffi-func (foreign-procedure "func_name1" (type arg1) int)])
-  ;;       (lambda args (apply ffi-func (current-parameter) args))))
-  ;;   ...)
-  (define-syntax c-default-function
-    (lambda (stx)
-      (syntax-case stx ()
-        [(_ (def-type def-instance) (name args return) ...)
-         (with-syntax ([(function-string ...)
-                        (map syntax->function-name-string #'(name ...))]
-                       [(((arg-type arg-name arg-call) ...) ...)
-                        (map
-                          make-ev-tstamp-args
-                          #'(args ...))])
-            #'(begin
-                (define name
-                  (let ([ffi-func (foreign-procedure function-string (def-type arg-type ...) return)])
-                    (lambda (arg-name ...)
-                      (ffi-func def-instance arg-call ...)))) ...))])))
+  ;; ev-function directly translates scheme-case-symbols to c_underscore_format symbols
+  ;; as used by libev.
+  (define-syntax ev-function
+    (lambda (x)
+      (syntax-case x ()
+        [(_ name rest ...)
+         (identifier? #'name)
+         (with-syntax ([function-string (syntax->function-name-string #'name)])
+           #'(c-function name function-string rest ...))]
+        [(_ (def ...) ...)
+         ;; Allow inline batch definitions.
+         #'(begin
+             (ev-function def ...) ...)])))
+
+  ;; ev-ffi wrapper functions are named using `string-titlecase` format.
+  ;; Using this convention allows for creating wrappers and avoiding name clashes.
+  ;; eg, ev_io_set is a libev macro so wrap using function Ev_io_set.
+  ;; ffi-wrapper-function will generate a scheme level symbol ev-io-set.
+  (define-syntax ffi-wrapper-function
+    (lambda (x)
+      (syntax-case x ()
+        [(_ name rest ...)
+         (identifier? #'name)
+         (with-syntax ([function-string (syntax->ffi-name-string #'name)])
+           ;; No ffi wrapper functions are written that use default-args, hence ().
+           #'(c-function name function-string () rest ...))]
+        [(_ (def ...) ...)
+         ;; Allow inline batch definitions.
+         #'(begin
+             (ffi-wrapper-function def ...) ...)])))
 
   ;; parse-enum-bit-defs: internal function.
   ;; parses enumdefs (for c-enum) and bitdefs (for c-bitmap).

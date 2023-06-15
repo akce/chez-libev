@@ -145,12 +145,21 @@
    (chezscheme)
    (ev ftypes-util))
 
-  ;; #t: use pure scheme re-implementation of libev C macros.
-  ;; #f: use macro->function exports from ev-ffi shared lib.
-  ;; Using the pure version is easier on systems without access to a C compiler and may
-  ;; have benefits when compiling whole programs, however it has higher risk of being
-  ;; out of sync with the installed libev.so shared lib.
-  (meta define pure? #f)
+  (meta begin
+    ;; #t: use pure scheme re-implementation of libev C macros.
+    ;; #f: use macro->function exports from ev-ffi shared lib.
+    ;; Using the pure version is easier on systems without access to a C compiler and may
+    ;; have benefits when compiling whole programs, however it has higher risk of being
+    ;; out of sync with the installed libev.so shared lib.
+    (define pure? #f)
+
+    ;; ev-multiplicity? must be set to the same value as libev's EV_MULTIPLICITY.
+    ;; This is because a number of libev functions will include `struct ev_loop*` as a first
+    ;; parametre only if this is true.
+    ;; These bindings aim to generate the correct function prototypes for either case.
+    ;; If #t, set the loop affected by changing or overriding the `(current-loop)` parameter.
+    (define ev-multiplicity? #t)
+    )
 
   (define load-libev
     (load-shared-object "libev.so.4"))
@@ -611,7 +620,7 @@
     (define-ftype ev-periodic-reschedule-cb-t	(function ((* ev-periodic-t) ev-tstamp)		ev-tstamp))
 
     ;;; libev-ffi extensions. See ev/ev-ffi.c
-    (c-function
+    (ffi-wrapper-function
       (ev-version-major-def	()		int)
       (ev-version-minor-def	()		int)
       ;; raw constructors (internal only).
@@ -661,8 +670,13 @@
       )
     ])
 
-  ;; raw ev prototypes: those declared with underscores will be wrapped with scheme functions later.
-  (c-function
+  ;; These simple libev functions do not use default arguments.
+  (define-syntax ev-simple-function
+    (syntax-rules ()
+      [(_ (name rest ...) ...)
+       (ev-function (name () rest ...) ...)]))
+
+  (ev-simple-function
    ;;;;;;; EV_PROTOTYPES
    ;; meta funcs
    (ev-version-major		()		int)
@@ -673,21 +687,23 @@
    ;; time related
    (ev-time			()		ev-tstamp)
    (ev-sleep			(ev-tstamp)	void)
-   (ev_set_allocator		((* realloc-fn))	void)
-   (ev_set_syserr_cb		((* msg-cb-fn))		void)
-   (ev_default_loop		(int)			ev-loop*)
-   (ev_loop_new			(int)			ev-loop*)
+   (ev-set-allocator		((* realloc-fn))	void)
+   (ev-set-syserr-cb		((* msg-cb-fn))		void)
+   (ev-default-loop		(int)			ev-loop*
+     (case-lambda
+       [()
+        (c/func 0)]
+       [(flags)
+        (c/func flags)]))
+   (ev-loop-new			(int)			ev-loop*
+     (case-lambda
+       [()
+        (c/func 0)]
+       [(flags)
+        (c/func flags)]))
 
-   ;; ev-break & ev-run use case-lambda, so leave outside the c-default-function section.
-   (ev_break		(ev-loop* int)		void)
-   (ev_run		(ev-loop* int)		boolean)
    (ev-feed-signal	(int)			void)
    )
-
-  (define ev-default-loop
-    (case-lambda
-     [()	(ev-default-loop 0)]
-     [(flags)	(ev_default_loop flags)]))
 
   (define EV_DEFAULT (ev-default-loop))
 
@@ -695,7 +711,40 @@
   (define current-loop
     (make-parameter EV_DEFAULT))
 
-  (c-default-function (ev-loop* (current-loop))
+  ;; ev-multiplicity? == #t:
+  ;;    Public function wrappers are generated so the actual first argument to the underlying libev function
+  ;;    is *always* invoked with `(current-loop)`.
+  ;;    Clients can control which loop to use by overriding parameter `(current-loop)`.
+  (meta-cond
+    [ev-multiplicity?
+      (define-syntax ev-loop-function
+        (lambda (stx)
+          (syntax-case stx ()
+            [(_ (default-type default-instance) (name rest ...) ...)
+             #'(ev-function
+                 (name (default-type default-instance) rest ...) ...)])))]
+    [else
+      (define-syntax ev-loop-function
+        (lambda (stx)
+          (syntax-case stx ()
+            [(_ (default-type default-instance) (name rest ...) ...)
+             ;; Ignore defaults. libev must be compiled without starting ev_loop* params.
+             #'(ev-function
+                 (name () rest ...) ...)])))])
+
+  (ev-loop-function (ev-loop* (current-loop))
+   (ev-break		(int)		void
+     (case-lambda
+       [()
+        (c/func (evbreak 'ONE))]
+       [(how)
+        (c/func how)]))
+   (ev-run		(int)		boolean
+     (case-lambda
+       [()
+        (c/func 0)]
+       [(flags)
+        (c/func flags)]))
    (ev-now		()			ev-tstamp)
    ;; TODO with destroy, maybe the (current-loop) should be invalidated?
    (ev-loop-destroy	()			void)
@@ -768,21 +817,6 @@
   ;; TODO
   ;; (define ev-set-allocator)
   ;; (define ev-set-syserr-cb)
-
-  (define ev-loop-new
-    (case-lambda
-     [()	(ev-loop-new 0)]
-     [(flags)	(ev_loop_new flags)]))
-
-  (define ev-run
-    (case-lambda
-     [()	(ev-run 0)]
-     [(flags)	(ev_run (current-loop) flags)]))
-
-  (define ev-break
-    (case-lambda
-     [()	(ev-break (evbreak 'ONE))]
-     [(how)	(ev_break (current-loop) how)]))
 
   (define watcher-guardian
     (make-guardian))
