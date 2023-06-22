@@ -44,7 +44,7 @@
   (Make-ev-idle	((* ev-idle-cb-t))	(* ev-idle-t))
   (Make-ev-prepare	((* ev-prepare-cb-t))	(* ev-prepare-t))
   (Make-ev-check	((* ev-check-cb-t))	(* ev-check-t))
-  (Make-ev-embed	(ev-loop* (* ev-embed-cb-t))	(* ev-embed-t))
+  (Make-ev-embed	((* ev-loop) (* ev-embed-cb-t))	(* ev-embed-t))
   (Make-ev-fork	((* ev-fork-cb-t))	(* ev-fork-t))
   (Make-ev-cleanup	((* ev-cleanup-cb-t))	(* ev-cleanup-t))
   (Make-ev-async	((* ev-async-cb-t))	(* ev-async-t))
@@ -168,6 +168,8 @@
     ev-periodic-reschedule-cb-t
     (lambda (w now)
       (+ now 22))))
+(define loop-null (make-ftype-pointer ev-loop 0))
+(define loop-deadbeef (make-ftype-pointer ev-loop #xdeadbeef))
 (test-make-memory
   (ev-io	; (fd events)
     (1 2)
@@ -208,8 +210,8 @@
   (ev-cleanup
     ())
   (ev-embed	; (other)
-    (0)
-    (#xdeadbeef))
+    (loop-null)
+    (loop-deadbeef))
   (ev-async
     ())
   )

@@ -223,7 +223,7 @@
     (TERM	0)
     (ANY	1))
 
-  (define-ftype ev-loop*		void*)
+  (define-ftype ev-loop		(struct))
   ;; tv-tstamp is a 'double' unless EV_TSTAMP_T overrides it.
   (define-ftype ev-tstamp		double)
   ;;;; PURE_TEST_END
@@ -231,7 +231,7 @@
   ;; memory alloc function prototype.
   (define-ftype realloc-fn	(function (void* long)	void*))
   (define-ftype msg-cb-fn	(function (string)	void))
-  (define-ftype ev-loop-callback (function (ev-loop*)	void))
+  (define-ftype ev-loop-callback (function ((* ev-loop))	void))
 
   (meta-cond
     [pure?
@@ -343,7 +343,7 @@
                        (field-name field-type)
                        ...)]
                    [ev-TYPE-cb-t
-                     (function (ev-loop* (* type-name-t) int) void)]
+                     (function ((* ev-loop) (* type-name-t) int) void)]
                    extra-ftypes* ...)
                  ev-TYPE-FIELD-get ...
                  ev-TYPE-FIELD-set ...
@@ -539,7 +539,7 @@
 
       (define-ev-type ev-embed (other)
         ()
-        (other	ev-loop*	ro)
+        (other	(* ev-loop)	ro)
         (io		ev-io-t		(ref private))
         (prepare	ev-prepare-t	(ref private))
         (check	ev-check-t	unused)
@@ -612,7 +612,7 @@
              #'(begin
                  (define-ftype
                    [ev-TYPE-t (struct)]
-                   [ev-TYPE-cb-t (function (ev-loop* (* ev-TYPE-t) int) void)])
+                   [ev-TYPE-cb-t (function ((* ev-loop) (* ev-TYPE-t) int) void)])
                  (define watcher-name
                    (lambda (args ... callback-func)
                      (let ([watcher (make-watcher-func
@@ -727,11 +727,11 @@
       (ev-check-init	((* ev-check-t) (* ev-check-cb-t))	void)
       (ev-check-cb-get	((* ev-check-t))			(* ev-check-cb-t))
       ;; ev-embed-t
-      (make-ev-embed		(ev-loop* (* ev-embed-cb-t))			(* ev-embed-t))
-      (ev-embed-init		((* ev-embed-t) (* ev-embed-cb-t) ev-loop*)	void)
-      (ev-embed-set		((* ev-embed-t) ev-loop*)			void)
+      (make-ev-embed		((* ev-loop) (* ev-embed-cb-t))			(* ev-embed-t))
+      (ev-embed-init		((* ev-embed-t) (* ev-embed-cb-t) (* ev-loop))	void)
+      (ev-embed-set		((* ev-embed-t) (* ev-loop))			void)
       (ev-embed-cb-get		((* ev-embed-t))				(* ev-embed-cb-t))
-      (ev-embed-other-get	((* ev-embed-t))				ev-loop*)
+      (ev-embed-other-get	((* ev-embed-t))				(* ev-loop))
       ;; ev-fork-t
       (make-ev-fork	((* ev-fork-cb-t))			(* ev-fork-t))
       (ev-fork-init	((* ev-fork-t) (* ev-fork-cb-t))	void)
@@ -767,13 +767,13 @@
    (ev-sleep			(ev-tstamp)	void)
    (ev-set-allocator		((* realloc-fn))	void)
    (ev-set-syserr-cb		((* msg-cb-fn))		void)
-   (ev-default-loop		(int)			ev-loop*
+   (ev-default-loop		(int)			(* ev-loop)
      (case-lambda
        [()
         (c/func 0)]
        [(flags)
         (c/func flags)]))
-   (ev-loop-new			(int)			ev-loop*
+   (ev-loop-new			(int)			(* ev-loop)
      (case-lambda
        [()
         (c/func 0)]
@@ -810,7 +810,7 @@
              #'(ev-function
                  (name () rest ...) ...)])))])
 
-  (ev-loop-function (ev-loop* (current-loop))
+  (ev-loop-function ((* ev-loop) (current-loop))
    (ev-break		(int)		void
      (case-lambda
        [()
