@@ -128,6 +128,12 @@ Ev_io_sizeof()
 	return sizeof(ev_io);
 	}
 
+ev_io_cb_t
+Ev_io_cb_get(const ev_io* watcher)
+	{
+	return watcher->cb;
+	}
+
 int
 Ev_io_fd_get(const ev_io* watcher)
 	{
@@ -190,6 +196,12 @@ Ev_timer_sizeof()
 	return sizeof(ev_timer);
 	}
 
+ev_timer_cb_t
+Ev_timer_cb_get(const ev_timer* watcher)
+	{
+	return watcher->cb;
+	}
+
 /* NOTE EV_WATCHER_TIME::at is used for ev_timer_after_* */
 size_t
 Ev_timer_after_offsetof()
@@ -239,6 +251,12 @@ size_t
 Ev_periodic_sizeof()
 	{
 	return sizeof(ev_periodic);
+	}
+
+ev_periodic_cb_t
+Ev_periodic_cb_get(const ev_periodic* watcher)
+	{
+	return watcher->cb;
 	}
 
 ev_tstamp
@@ -327,6 +345,12 @@ Ev_signal_sizeof()
 	return sizeof(ev_signal);
 	}
 
+ev_signal_cb_t
+Ev_signal_cb_get(const ev_signal* watcher)
+	{
+	return watcher->cb;
+	}
+
 int
 Ev_signal_signum_get(const ev_signal* watcher)
 	{
@@ -369,6 +393,12 @@ size_t
 Ev_child_sizeof()
 	{
 	return sizeof(ev_child);
+	}
+
+ev_child_cb_t
+Ev_child_cb_get(const ev_child* watcher)
+	{
+	return watcher->cb;
 	}
 
 // NOTE ev_child trace is stored in `flags`.
@@ -453,6 +483,12 @@ Ev_stat_sizeof()
 	return sizeof(ev_stat);
 	}
 
+ev_stat_cb_t
+Ev_stat_cb_get(const ev_stat* watcher)
+	{
+	return watcher->cb;
+	}
+
 ev_idle*
 Make_ev_idle(ev_idle_cb_t cb)
 	{
@@ -471,6 +507,12 @@ size_t
 Ev_idle_sizeof()
 	{
 	return sizeof(ev_idle);
+	}
+
+ev_idle_cb_t
+Ev_idle_cb_get(const ev_idle* watcher)
+	{
+	return watcher->cb;
 	}
 
 ev_prepare*
@@ -493,6 +535,12 @@ Ev_prepare_sizeof()
 	return sizeof(ev_prepare);
 	}
 
+ev_prepare_cb_t
+Ev_prepare_cb_get(const ev_prepare* watcher)
+	{
+	return watcher->cb;
+	}
+
 ev_check*
 Make_ev_check(ev_check_cb_t cb)
 	{
@@ -511,6 +559,12 @@ size_t
 Ev_check_sizeof()
 	{
 	return sizeof(ev_check);
+	}
+
+ev_check_cb_t
+Ev_check_cb_get(const ev_check* watcher)
+	{
+	return watcher->cb;
 	}
 
 ev_embed*
@@ -537,6 +591,12 @@ size_t
 Ev_embed_sizeof()
 	{
 	return sizeof(ev_embed);
+	}
+
+ev_embed_cb_t
+Ev_embed_cb_get(const ev_embed* watcher)
+	{
+	return watcher->cb;
 	}
 
 ev_loop_t*
@@ -571,6 +631,12 @@ Ev_fork_sizeof()
 	return sizeof(ev_fork);
 	}
 
+ev_fork_cb_t
+Ev_fork_cb_get(const ev_fork* watcher)
+	{
+	return watcher->cb;
+	}
+
 ev_cleanup*
 Make_ev_cleanup(ev_cleanup_cb_t cb)
 	{
@@ -591,6 +657,12 @@ Ev_cleanup_sizeof()
 	return sizeof(ev_cleanup);
 	}
 
+ev_cleanup_cb_t
+Ev_cleanup_cb_get(const ev_cleanup* watcher)
+	{
+	return watcher->cb;
+	}
+
 ev_async*
 Make_ev_async(ev_async_cb_t cb)
 	{
@@ -609,6 +681,12 @@ size_t
 Ev_async_sizeof()
 	{
 	return sizeof(ev_async);
+	}
+
+ev_async_cb_t
+Ev_async_cb_get(const ev_async* watcher)
+	{
+	return watcher->cb;
 	}
 
 int

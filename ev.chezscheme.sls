@@ -8,9 +8,8 @@
 
 (library (ev)
   (export
-    ;; watcher context functions.
+    ;; Frees any watcher at the cost of processing time.
    ev-free-watcher!
-   ev-watcher-address
 
    ;; These have issues, so don't export for now.
    ;;free-watchers collect-watchers
@@ -50,7 +49,7 @@
    ev-feed-event ev-feed-fd-event ev-feed-signal ev-feed-signal-event ev-invoke ev-clear-pending
 
    ;; Event watchers.
-   ev-io
+   ev-io ev-io-free
    (rename
      (ev-io-init ev-io-init!)
      (ev-io-set ev-io-set!)
@@ -59,7 +58,7 @@
      (ev-io-modify ev-io-modify!))
    ev-io-start ev-io-stop
 
-   ev-timer
+   ev-timer ev-timer-free
    (rename
      (ev-timer-init ev-timer-init!)
      (ev-timer-set ev-timer-set!)
@@ -69,6 +68,7 @@
 
    ev-periodic
    (rename
+     (ev-periodic-free* ev-periodic-free)
      (ev-periodic-init ev-periodic-init!)
      (ev-periodic-set ev-periodic-set!)
      (ev-periodic-offset-get ev-periodic-offset)
@@ -79,14 +79,14 @@
      (ev-periodic-reschedule-cb-set ev-periodic-reschedule-cb-set!))
    ev-periodic-start ev-periodic-stop ev-periodic-again ev-periodic-at
 
-   ev-signal
+   ev-signal ev-signal-free
    (rename
      (ev-signal-init ev-signal-init!)
      (ev-signal-set ev-signal-set!)
      (ev-signal-signum-get ev-signal-signum))
    ev-signal-start ev-signal-stop
 
-   ev-child
+   ev-child ev-child-free
    (rename
      (ev-child-init ev-child-init!)
      (ev-child-set ev-child-set!)
@@ -98,7 +98,7 @@
    ev-child-start ev-child-stop
 
    ;; TODO disabled till path strings and stat structs are handled.
-   #;ev-stat
+   #;ev-stat ev-stat-free
    #;(rename
      (ev-stat-init ev-stat-init!)
      (ev-stat-set ev-stat-set!)
@@ -108,28 +108,28 @@
      (ev-stat-path-get ev-stat-path))
    ;;ev-stat-start ev-stat-stop ev-stat-stat
 
-   ev-idle
+   ev-idle ev-idle-free
    ev-idle-start ev-idle-stop
 
-   ev-prepare
+   ev-prepare ev-prepare-free
    ev-prepare-start ev-prepare-stop
 
-   ev-check
+   ev-check ev-check-free
    ev-check-start ev-check-stop
 
-   ev-embed
+   ev-embed ev-embed-free
    (rename
      (ev-embed-init ev-embed-init!)
      (ev-embed-other-get ev-embed-other))
    ev-embed-start ev-embed-stop ev-embed-sweep
 
-   ev-fork
+   ev-fork ev-fork-free
    ev-fork-start ev-fork-stop
 
-   ev-cleanup
+   ev-cleanup ev-cleanup-free
    ev-cleanup-start ev-cleanup-stop
 
-   ev-async
+   ev-async ev-async-free
    (rename
      (ev-async-init ev-async-init!)
      (ev-async-pending ev-async-pending?))
@@ -331,6 +331,8 @@
                             [allocz-ev-TYPE (make-id-syntax #'type-name "allocz-" #'type-name)]
                             [ev-TYPE-init (make-id-syntax #'type-name #'type-name "-init")]
                             [make-ev-TYPE (make-id-syntax #'type-name "make-" #'type-name)]
+                            [ev-TYPE-free (make-id-syntax #'type-name #'type-name "-free")]
+                            [ev-TYPE-cb-get (make-id-syntax #'type-name #'type-name "-cb-get")]
                             [ev-TYPE-set (make-id-syntax #'type-name #'type-name "-set")]
                             [ev-TYPE-start (make-id-syntax #'type-name #'type-name "-start")]
                             [ev-TYPE-stop (make-id-syntax #'type-name #'type-name "-stop")])
@@ -371,21 +373,26 @@
                        (ev-TYPE-init ptr cb)
                        (ev-TYPE-set ptr init-args* ...)
                        ptr)))
+                 (define ev-TYPE-free
+                   (lambda (watcher)
+                     (ev-TYPE-stop watcher)
+                     (foreign-free (ftype-pointer-address watcher))
+                     ;; unlock the callback function address so that Chez Scheme's gc can remove it.
+                     (unlock-object (foreign-callable-code-object (ftype-pointer-address (ev-TYPE-cb-get watcher))))))
                  (define type-name
                    (lambda (init-args* ... cb)
-                     (let* ([fp-callback (make-ftype-pointer
-                                           ev-TYPE-cb-t
-                                           (lambda (loop w rev)
-                                             (parameterize ([current-loop loop])
-                                               (cb w rev))))]
-                            [watcher (make-ev-TYPE init-args* ... fp-callback)]
-                            [wcxt (make-wc watcher fp-callback (lambda () (ev-TYPE-stop watcher)))])
+                     (let ([watcher (make-ev-TYPE
+                                      init-args* ...
+                                      (make-ftype-pointer
+                                        ev-TYPE-cb-t
+                                        (lambda (loop w rev)
+                                          (parameterize ([current-loop loop])
+                                            (cb w rev)))))])
                        ;; Note: (locked-object? (foreign-callable-code-object (ftype-pointer-address fp-callback))) => #t
-                       (watcher-guardian wcxt)
                        (ev-TYPE-start watcher)
                        ;; Return watcher-context. Caller should keep a reference to this and/or manage (collect-watchers).
-                       ;; FIXME caller cannot pass wcxt to (stop-<event-type>).
-                       wcxt)))))])))
+                       #;(watcher-guardian watcher)
+                       watcher)))))])))
 
       (define-syntax define-ev-type
         (lambda (x)
@@ -598,27 +605,34 @@
            (with-syntax ([make-watcher-func (make-id-syntax #'k "make-" #'watcher-name)]
                          [start-watcher-func (make-id-syntax #'k #'watcher-name "-start")]
                          [stop-watcher-func (make-id-syntax #'k #'watcher-name "-stop")]
+                         [ev-TYPE-free (make-id-syntax #'k #'watcher-name "-free")]
                          [ev-TYPE-t (make-id-syntax #'k #'watcher-name "-t")]
-                         [ev-TYPE-cb-t (make-id-syntax #'k #'watcher-name "-cb-t")])
+                         [ev-TYPE-cb-t (make-id-syntax #'k #'watcher-name "-cb-t")]
+                         [ev-TYPE-cb-get (make-id-syntax #'k #'watcher-name "-cb-get")])
              #'(begin
                  (define-ftype
                    [ev-TYPE-t (struct)]
                    [ev-TYPE-cb-t (function (ev-loop* (* ev-TYPE-t) int) void)])
                  (define watcher-name
                    (lambda (args ... callback-func)
-                     (let* ([fp-callback (make-ftype-pointer
-                                           ev-TYPE-cb-t
-                                           (lambda (loop w rev)
-                                             (parameterize ([current-loop loop])
-                                               (callback-func w rev))))]
-                            [watcher (make-watcher-func args ... fp-callback)]
-                            [wcxt (make-wc watcher fp-callback (lambda () (stop-watcher-func watcher)))])
+                     (let ([watcher (make-watcher-func
+                                      args ...
+                                      (make-ftype-pointer
+                                        ev-TYPE-cb-t
+                                        (lambda (loop w rev)
+                                          (parameterize ([current-loop loop])
+                                            (callback-func w rev)))))])
                        ;; Note: (locked-object? (foreign-callable-code-object (ftype-pointer-address fp-callback))) => #t
-                       (watcher-guardian wcxt)
                        (start-watcher-func watcher)
-                       ;; Return watcher-context. Caller should keep a reference to this and/or manage (collect-watchers).
-                       ;; FIXME caller cannot pass wcxt to (stop-<event-type>).
-                       wcxt)))))])))
+                       ;; Return watcher, caller should keep a reference to this and/or manage (collect-watchers).
+                       #;(watcher-guardian watcher)
+                       watcher)))
+                 (define ev-TYPE-free
+                   (lambda (watcher)
+                     (stop-watcher-func watcher)
+                     ;; unlock the callback function address so that Chez Scheme's gc can remove it.
+                     (unlock-object (foreign-callable-code-object (ftype-pointer-address (ev-TYPE-cb-get watcher))))
+                     (foreign-free (ftype-pointer-address watcher))))))])))
 
     (define-syntax batch
       (syntax-rules ()
@@ -659,18 +673,21 @@
       (ev-io-init		((* ev-io-t) (* ev-io-cb-t) int int)	void)
       (ev-io-set		((* ev-io-t) int int)			void)
       (ev-io-modify		((* ev-io-t) int)			void)
+      (ev-io-cb-get		((* ev-io-t))				(* ev-io-cb-t))
       (ev-io-fd-get		((* ev-io-t))				int)
       (ev-io-events-get		((* ev-io-t))				int)
       ;; ev-timer-t
       (make-ev-timer		(ev-tstamp ev-tstamp (* ev-timer-cb-t))			(* ev-timer-t))
       (ev-timer-init		((* ev-timer-t) (* ev-timer-cb-t) ev-tstamp ev-tstamp)	void)
       (ev-timer-set		((* ev-timer-t) ev-tstamp ev-tstamp)			void)
+      (ev-timer-cb-get		((* ev-timer-t))					(* ev-timer-cb-t))
       (ev-timer-repeat-get	((* ev-timer-t))					ev-tstamp)
       (ev-timer-repeat-set	((* ev-timer-t) ev-tstamp)				void)
       ;; ev-periodic-t
       (make-ev-periodic			(ev-tstamp ev-tstamp (* ev-periodic-reschedule-cb-t) (* ev-periodic-cb-t))	(* ev-periodic-t))
       (ev-periodic-init			((* ev-periodic-t) (* ev-periodic-cb-t) ev-tstamp ev-tstamp (* ev-periodic-reschedule-cb-t))	void)
       (ev-periodic-set			((* ev-periodic-t) ev-tstamp ev-tstamp (* ev-periodic-reschedule-cb-t))	void)
+      (ev-periodic-cb-get		((* ev-periodic-t))				(* ev-periodic-cb-t))
       (ev-periodic-at			((* ev-periodic-t))		ev-tstamp)
       (ev-periodic-offset-get		((* ev-periodic-t))		ev-tstamp)
       (ev-periodic-offset-set		((* ev-periodic-t) ev-tstamp)	void)
@@ -682,11 +699,13 @@
       (make-ev-signal		(int (* ev-signal-cb-t))			(* ev-signal-t))
       (ev-signal-init		((* ev-signal-t) (* ev-signal-cb-t) int)	void)
       (ev-signal-set		((* ev-signal-t) int)				void)
+      (ev-signal-cb-get		((* ev-signal-t))				(* ev-signal-cb-t))
       (ev-signal-signum-get	((* ev-signal-t))				int)
       ;; ev-child-t
       (make-ev-child		(int int (* ev-child-cb-t))			(* ev-child-t))
       (ev-child-init		((* ev-child-t) (* ev-child-cb-t) int int)	void)
       (ev-child-set		((* ev-child-t) int int)			void)
+      (ev-child-cb-get		((* ev-child-t))				(* ev-child-cb-t))
       (ev-child-pid-get		((* ev-child-t))				int)
       (ev-child-rpid-get	((* ev-child-t))				int)
       (ev-child-rpid-set	((* ev-child-t) int)				void)
@@ -694,29 +713,37 @@
       (ev-child-rstatus-set	((* ev-child-t) int)				void)
       ;; TODO ev-stat-t
       (make-ev-stat	(string ev-tstamp (* ev-stat-cb-t))	(* ev-stat-t))
+      (ev-stat-cb-get		((* ev-stat-t))				(* ev-stat-cb-t))
       ;; ev-idle-t
       (make-ev-idle	((* ev-idle-cb-t))			(* ev-idle-t))
       (ev-idle-init	((* ev-idle-t) (* ev-idle-cb-t))	void)
+      (ev-idle-cb-get	((* ev-idle-t))				(* ev-idle-cb-t))
       ;; ev-prepare-t
       (make-ev-prepare	((* ev-prepare-cb-t))			(* ev-prepare-t))
       (ev-prepare-init	((* ev-prepare-t) (* ev-prepare-cb-t))	void)
+      (ev-prepare-cb-get	((* ev-prepare-t))				(* ev-prepare-cb-t))
       ;; ev-check-t
       (make-ev-check	((* ev-check-cb-t))			(* ev-check-t))
       (ev-check-init	((* ev-check-t) (* ev-check-cb-t))	void)
+      (ev-check-cb-get	((* ev-check-t))			(* ev-check-cb-t))
       ;; ev-embed-t
       (make-ev-embed		(ev-loop* (* ev-embed-cb-t))			(* ev-embed-t))
       (ev-embed-init		((* ev-embed-t) (* ev-embed-cb-t) ev-loop*)	void)
       (ev-embed-set		((* ev-embed-t) ev-loop*)			void)
+      (ev-embed-cb-get		((* ev-embed-t))				(* ev-embed-cb-t))
       (ev-embed-other-get	((* ev-embed-t))				ev-loop*)
       ;; ev-fork-t
       (make-ev-fork	((* ev-fork-cb-t))			(* ev-fork-t))
       (ev-fork-init	((* ev-fork-t) (* ev-fork-cb-t))	void)
+      (ev-fork-cb-get	((* ev-fork-t))				(* ev-fork-cb-t))
       ;; ev-cleanup-t
       (make-ev-cleanup	((* ev-cleanup-cb-t))			(* ev-cleanup-t))
       (ev-cleanup-init	((* ev-cleanup-t) (* ev-cleanup-cb-t))	void)
+      (ev-cleanup-cb-get	((* ev-cleanup-t))		(* ev-cleanup-cb-t))
       ;; ev-async-t
       (make-ev-async	((* ev-async-cb-t))			(* ev-async-t))
       (ev-async-init	((* ev-async-t) (* ev-async-cb-t))	void)
+      (ev-async-cb-get	((* ev-async-t))			(* ev-async-cb-t))
       (ev-async-pending	((* ev-async-t))			boolean)
       )
     ])
@@ -872,17 +899,6 @@
   (define watcher-guardian
     (make-guardian))
 
-  (define-record-type wc	; wc = watcher-context.
-    (fields
-      (mutable watcher ev-watcher-address ev-watcher-address-set!)
-      (immutable ftype-callback)
-      (immutable stop-thunk)))
-
-  (define-record-type pwc	; pwc = periodic-watcher-context
-    (parent wc)
-    (fields
-      (immutable ftype-reschedule-callback)))
-
   (define collect-watchers
     (make-parameter 3
       (lambda (val)
@@ -899,16 +915,35 @@
 
   (define ev-free-watcher!
     (lambda (w)
-      (when (ev-watcher-address w)
-        ((wc-stop-thunk w))
-        ;; free() the pointer returned by make-<watcher-type>.
-        (foreign-free (ftype-pointer-address (ev-watcher-address w)))
-        ;; ensure there's no double free.
-        (ev-watcher-address-set! w #f)
-        ;; unlock the callback function address so that the Chez gc can remove it.
-        (unlock-object (foreign-callable-code-object (ftype-pointer-address (wc-ftype-callback w))))
-        (when (pwc? w)
-          (unlock-object (foreign-callable-code-object (ftype-pointer-address (pwc-ftype-reschedule-callback w))))))))
+      (cond
+        [(ftype-pointer? ev-io-t w)
+         (ev-io-free w)]
+        [(ftype-pointer? ev-timer-t w)
+         (ev-timer-free w)]
+        [(ftype-pointer? ev-periodic-t w)
+         (ev-periodic-free* w)]
+        [(ftype-pointer? ev-signal-t w)
+         (ev-signal-free w)]
+        [(ftype-pointer? ev-child-t w)
+         (ev-child-free w)]
+        [(ftype-pointer? ev-stat-t w)
+         (ev-stat-free w)]
+        [(ftype-pointer? ev-idle-t w)
+         (ev-idle-free w)]
+        [(ftype-pointer? ev-prepare-t w)
+         (ev-prepare-free w)]
+        [(ftype-pointer? ev-check-t w)
+         (ev-check-free w)]
+        [(ftype-pointer? ev-embed-t w)
+         (ev-embed-free w)]
+        [(ftype-pointer? ev-fork-t w)
+         (ev-fork-free w)]
+        [(ftype-pointer? ev-cleanup-t w)
+         (ev-cleanup-free w)]
+        [(ftype-pointer? ev-async-t w)
+         (ev-async-free w)]
+        [else
+          (error 'ev-free-watcher! "Unknown libev watcher ptr" w)])))
 
   (define free-watchers
     (case-lambda
@@ -916,11 +951,11 @@
        (free-watchers (collect-watchers))]
       [(c)
        (when c
-         (let loop ([i c] [wcxt (watcher-guardian)])
-           (when (and wcxt (> i 0))
+         (let loop ([i c] [w (watcher-guardian)])
+           (when (and w (> i 0))
              (when (collect-notify)
-               (display "free watcher: ")(display wcxt)(newline))
-             (ev-free-watcher! wcxt)
+               (display "free watcher: ")(display w)(newline))
+             (ev-free-watcher! w)
              (loop (- i 1) (watcher-guardian)))))]))
 
   (define-syntax ev-ms
@@ -944,8 +979,17 @@
           [else
             (error 'time->absolute-number "time-utc or time-duration argument required" t)]))))
 
-  ;; There are three main ways to use ev-periodic. Expose convenience wrappers for them rather than the low level ev-periodic.
-  ;; Do these as syntax just to be the same as the other ev-watcher types.
+  ;; I should probably extend ev watcher builder to handle custom free functions per field,
+  ;; but this override is good enough for now.
+  (define ev-periodic-free*
+    (lambda (watcher)
+      (ev-periodic-free watcher)
+      (let ([rcb (ev-periodic-reschedule-cb-get watcher)])
+        (unless (ftype-pointer-null? rcb)
+          (unlock-object (foreign-callable-code-object (ftype-pointer-address rcb)))))))
+
+  ;; There are three main ways to use ev-periodic.
+  ;; Expose convenience wrappers for them rather than the low level ev-periodic.
   ;; See libev(3)
   (define-syntax ev-absolute-timer
     (syntax-rules ()
@@ -962,13 +1006,7 @@
   (define-syntax ev-manual-timer
     (syntax-rules ()
       [(_ reschedule-cb cb)
-       ;; Consider wrapping reschedule-cb-t such that 'now' is converted to a time object
+       ;; Consider wrapping reschedule-cb such that 'now' is converted to a time object
        ;; and return is assumed to be another time object that's converted to ev-tstamp.
-       (let* ([fp-rcb (make-ftype-pointer ev-periodic-reschedule-cb-t rcb)]
-              [wc (ev-periodic 0 0 fp-rcb cb)])
-         (make-pwc
-           (ev-watcher-address wc)
-           (wc-ftype-callback wc)
-           (wc-stop-thunk wc)
-           fp-rcb))]))
+       (ev-periodic 0 0 (make-ftype-pointer ev-periodic-reschedule-cb-t reschedule-cb) cb)]))
   )

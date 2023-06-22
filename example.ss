@@ -39,8 +39,8 @@
         (ev-timer 1 5
           (lambda (timer i)
             (set! j (+ 1 j))
-            (ev-async-send (ev-watcher-address asyncw))
-            (display "async before timer: pending ")(display (ev-async-pending? (ev-watcher-address asyncw)))(newline)
+            (ev-async-send asyncw)
+            (display "async before timer: pending ")(display (ev-async-pending? asyncw))(newline)
             (when (> j 4)
               (ev-break (evbreak 'ONE))))))
       ;; once initialised, clear away the prepare watcher.
