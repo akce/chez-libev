@@ -52,39 +52,44 @@
    ;; Event watchers.
    ev-io
    (rename
-     #;(ev-io-set ev-io-set!)
+     (ev-io-init ev-io-init!)
+     (ev-io-set ev-io-set!)
      (ev-io-fd-get ev-io-fd)
      (ev-io-events-get ev-io-events)
-     #;(ev-io-modify ev-io-modify!))
+     (ev-io-modify ev-io-modify!))
    ev-io-start ev-io-stop
 
    ev-timer
    (rename
-     #;(ev-timer-set ev-timer-set!)
+     (ev-timer-init ev-timer-init!)
+     (ev-timer-set ev-timer-set!)
      (ev-timer-repeat-get ev-timer-repeat)
      (ev-timer-repeat-set ev-timer-repeat-set!))
    ev-timer-start ev-timer-stop ev-timer-again ev-timer-remaining
 
    ev-periodic
    (rename
-     #;(ev-periodic-set ev-periodic-set!)
+     (ev-periodic-init ev-periodic-init!)
+     (ev-periodic-set ev-periodic-set!)
      (ev-periodic-offset-get ev-periodic-offset)
      (ev-periodic-offset-set ev-periodic-offset-set!)
      (ev-periodic-interval-get ev-periodic-interval)
      (ev-periodic-interval-set ev-periodic-interval-set!)
      (ev-periodic-reschedule-cb-get ev-periodic-reschedule-cb)
      (ev-periodic-reschedule-cb-set ev-periodic-reschedule-cb-set!))
-   ev-periodic-start ev-periodic-stop ev-periodic-again
+   ev-periodic-start ev-periodic-stop ev-periodic-again ev-periodic-at
 
    ev-signal
    (rename
-     #;(ev-signal-set ev-signal-set!)
+     (ev-signal-init ev-signal-init!)
+     (ev-signal-set ev-signal-set!)
      (ev-signal-signum-get ev-signal-signum))
    ev-signal-start ev-signal-stop
 
    ev-child
    (rename
-     #;(ev-child-set ev-child-set!)
+     (ev-child-init ev-child-init!)
+     (ev-child-set ev-child-set!)
      (ev-child-pid-get ev-child-pid)
      (ev-child-rpid-get ev-child-rpid)
      (ev-child-rpid-set ev-child-rpid-set!)
@@ -92,51 +97,46 @@
      (ev-child-rstatus-set ev-child-rstatus-set!))
    ev-child-start ev-child-stop
 
-   ;; Disable for now. Handling path strings and stat structs needs to be thought about.
+   ;; TODO disabled till path strings and stat structs are handled.
    #;ev-stat
    #;(rename
-     (ev-stat-set ev-stat-set!))
+     (ev-stat-init ev-stat-init!)
+     (ev-stat-set ev-stat-set!)
+     (ev-stat-attr-get ev-stat-attr)
+     (ev-stat-prev-get ev-stat-prev)
+     (ev-stat-interval-get ev-stat-interval)
+     (ev-stat-path-get ev-stat-path))
    ;;ev-stat-start ev-stat-stop ev-stat-stat
 
    ev-idle
-   #;(rename
-     (ev-idle-set ev-idle-set!))
    ev-idle-start ev-idle-stop
 
    ev-prepare
-   #;(rename
-     (ev-prepare-set ev-prepare-set!))
    ev-prepare-start ev-prepare-stop
 
    ev-check
-   #;(rename
-     (ev-check-set ev-check-set!))
    ev-check-start ev-check-stop
 
    ev-embed
-   #;(rename
-     (ev-embed-set ev-embed-set!)
+   (rename
+     (ev-embed-init ev-embed-init!)
      (ev-embed-other-get ev-embed-other))
    ev-embed-start ev-embed-stop ev-embed-sweep
 
    ev-fork
-   #;(rename
-     (ev-fork-set ev-fork-set!))
    ev-fork-start ev-fork-stop
 
    ev-cleanup
-   #;(rename
-     (ev-cleanup-set ev-cleanup-set!))
    ev-cleanup-start ev-cleanup-stop
 
    ev-async
-   #;(rename
-     (ev-async-set ev-async-set!))
-   (rename (ev-async-pending-get ev-async-pending?))
+   (rename
+     (ev-async-init ev-async-init!)
+     (ev-async-pending ev-async-pending?))
    ev-async-start ev-async-stop ev-async-send
 
    (rename
-     (ev-watcher-is-active ev-watcher-active?))
+     (ev-is-active ev-active?))
 
    ev-ms
 
@@ -152,7 +152,7 @@
 
   (meta begin
     ;; #t: use pure scheme re-implementation of libev C macros.
-    ;; #f: use macro->function exports from ev-ffi shared lib.
+    ;; #f: use macro->function wrappers from ev-ffi shared lib.
     ;; Using the pure version is easier on systems without access to a C compiler and may
     ;; have benefits when compiling whole programs, however it has higher risk of being
     ;; out of sync with the installed libev.so shared lib.
@@ -425,12 +425,15 @@
              field-def*
              ...)]))
 
+      ;; I'm not sure if this is more efficient, but generate syntax
+      ;; for a void rather than a function that calls void for no-ops.
       (define-syntax nop
         (syntax-rules ()
           [(_ name arg* ...)
-           (define name
-             (lambda args
-               (void)))]))
+           (define-syntax name
+             (syntax-rules ()
+               [(_ (... ...))
+                (void)]))]))
 
       ;; Event watcher typedef and fields setter function defines.
       ;; The field setter function is useful in that it abstracts setting all the user facing event specific
@@ -545,7 +548,7 @@
 
       (define-ev-type ev-async ()
         ()
-        (sent	sig-atomic-t	(ref private)))
+        (sent	sig-atomic-t	private))
       ;; CREF: /* nop, yes, this is a serious in-joke */
       (nop ev-async-set)
 
@@ -558,13 +561,23 @@
           ;; like it disables all existing events except IOFDSET and enables new events.
           (ev-io-events-set ev-t (bitwise-ior events (evmask '_IOFDSET)))))
 
-      (define ev-watcher-is-active
+      (define ev-is-active
         (lambda (watcher)
           ;; CREF: (0 + ((ev_watcher *)(void *)(ev))->active) /* ro, true when the watcher has been started */
           ;; HACK: Always cast to an ev-io-t, this gets around ftypes structs not having parents.
           ;; This is safe so long as all our struct types share the same base field layout.
           (let ([ptr (make-ftype-pointer ev-io-t (ftype-pointer-address watcher))])
             (ev-io-active-get ptr))))
+
+      (define ev-periodic-at
+        ;; CREF: (+((ev_watcher_time *)(ev))->at)
+        ev-periodic-at-get)
+
+      (define ev-async-pending
+        (lambda (watcher)
+          ;; CREF: (+(w)->sent)
+          (> (ev-async-sent-get watcher) 0)))
+
       ;;;; PURE_TEST_END
       ]
   [else
@@ -635,50 +648,76 @@
     (ffi-wrapper-function
       (ev-version-major-def	()		int)
       (ev-version-minor-def	()		int)
-      ;; raw constructors (internal only).
-      (make-ev-io		(int int (* ev-io-cb-t))	(* ev-io-t))
-      (make-ev-timer	(ev-tstamp ev-tstamp (* ev-timer-cb-t))	(* ev-timer-t))
-      (make-ev-periodic	(ev-tstamp ev-tstamp (* ev-periodic-reschedule-cb-t) (* ev-periodic-cb-t))	(* ev-periodic-t))
-      (make-ev-signal	(int (* ev-signal-cb-t))	(* ev-signal-t))
-      (make-ev-child	(int int (* ev-child-cb-t))	(* ev-child-t))
-      (make-ev-stat	(string ev-tstamp (* ev-stat-cb-t))	(* ev-stat-t))
-      (make-ev-idle	((* ev-idle-cb-t))	(* ev-idle-t))
-      (make-ev-prepare	((* ev-prepare-cb-t))	(* ev-prepare-t))
-      (make-ev-check	((* ev-check-cb-t))	(* ev-check-t))
-      (make-ev-embed	(ev-loop* (* ev-embed-cb-t))	(* ev-embed-t))
-      (make-ev-fork	((* ev-fork-cb-t))	(* ev-fork-t))
-      (make-ev-cleanup	((* ev-cleanup-cb-t))	(* ev-cleanup-t))
-      (make-ev-async	((* ev-async-cb-t))	(* ev-async-t))
-      ;; watcher macro wrappers
-      (ev-io-events-set		((* ev-io-t) int)	void)
-      ;; watcher accessors
-      (ev-io-fd-get		((* ev-io-t))	int)
-      (ev-io-events-get		((* ev-io-t))	int)
-      (ev-timer-repeat-get		((* ev-timer-t))	ev-tstamp)
-      (ev-timer-repeat-set		((* ev-timer-t) ev-tstamp) void)
-      (ev-periodic-offset-get	((* ev-periodic-t)) ev-tstamp)
-      (ev-periodic-offset-set	((* ev-periodic-t) ev-tstamp) void)
-      (ev-periodic-interval-get	((* ev-periodic-t)) ev-tstamp)
-      (ev-periodic-interval-set	((* ev-periodic-t) ev-tstamp) void)
-      (ev-periodic-reschedule-cb-get		((* ev-periodic-t)) (* ev-periodic-reschedule-cb-t))
-      (ev-periodic-reschedule-cb-set		((* ev-periodic-t) (* ev-periodic-reschedule-cb-t)) void)
-      (ev-signal-signum-get	((* ev-signal-t))	int)
-      (ev-child-pid-get		((* ev-child-t))	int)
-      (ev-child-rpid-get		((* ev-child-t))	int)
-      (ev-child-rpid-set		((* ev-child-t) int) void)
-      (ev-child-rstatus-get	((* ev-child-t))	int)
-      (ev-child-rstatus-set	((* ev-child-t) int) void)
-      ;; TODO ev-stat getters.
-      (ev-embed-other-get		((* ev-embed-t)) ev-loop*)
-      (ev-async-pending-get	((* ev-async-t)) boolean)
-
-      (ev-watcher-is-active	(ev-watcher*)	boolean)
-
       ;; TODO need to look at these. Note the ev-watcher types.
+      (ev-is-active		(ev-watcher*)	boolean)
       (ev-priority-get		(ev-watcher*) int)
       (ev-priority-set		(ev-watcher* int) void)
-      (ev-periodic-at-get		(ev-watcher-time*) int)
       ;; TODO ev-cb, ev-cb-set
+      ;;; Watcher specific C macro wrappers.
+      ;; ev-io-t
+      (make-ev-io		(int int (* ev-io-cb-t))		(* ev-io-t))
+      (ev-io-init		((* ev-io-t) (* ev-io-cb-t) int int)	void)
+      (ev-io-set		((* ev-io-t) int int)			void)
+      (ev-io-modify		((* ev-io-t) int)			void)
+      (ev-io-fd-get		((* ev-io-t))				int)
+      (ev-io-events-get		((* ev-io-t))				int)
+      ;; ev-timer-t
+      (make-ev-timer		(ev-tstamp ev-tstamp (* ev-timer-cb-t))			(* ev-timer-t))
+      (ev-timer-init		((* ev-timer-t) (* ev-timer-cb-t) ev-tstamp ev-tstamp)	void)
+      (ev-timer-set		((* ev-timer-t) ev-tstamp ev-tstamp)			void)
+      (ev-timer-repeat-get	((* ev-timer-t))					ev-tstamp)
+      (ev-timer-repeat-set	((* ev-timer-t) ev-tstamp)				void)
+      ;; ev-periodic-t
+      (make-ev-periodic			(ev-tstamp ev-tstamp (* ev-periodic-reschedule-cb-t) (* ev-periodic-cb-t))	(* ev-periodic-t))
+      (ev-periodic-init			((* ev-periodic-t) (* ev-periodic-cb-t) ev-tstamp ev-tstamp (* ev-periodic-reschedule-cb-t))	void)
+      (ev-periodic-set			((* ev-periodic-t) ev-tstamp ev-tstamp (* ev-periodic-reschedule-cb-t))	void)
+      (ev-periodic-at			((* ev-periodic-t))		ev-tstamp)
+      (ev-periodic-offset-get		((* ev-periodic-t))		ev-tstamp)
+      (ev-periodic-offset-set		((* ev-periodic-t) ev-tstamp)	void)
+      (ev-periodic-interval-get		((* ev-periodic-t))		ev-tstamp)
+      (ev-periodic-interval-set		((* ev-periodic-t) ev-tstamp)	void)
+      (ev-periodic-reschedule-cb-get	((* ev-periodic-t))		(* ev-periodic-reschedule-cb-t))
+      (ev-periodic-reschedule-cb-set	((* ev-periodic-t) (* ev-periodic-reschedule-cb-t))	void)
+      ;; ev-signal-t
+      (make-ev-signal		(int (* ev-signal-cb-t))			(* ev-signal-t))
+      (ev-signal-init		((* ev-signal-t) (* ev-signal-cb-t) int)	void)
+      (ev-signal-set		((* ev-signal-t) int)				void)
+      (ev-signal-signum-get	((* ev-signal-t))				int)
+      ;; ev-child-t
+      (make-ev-child		(int int (* ev-child-cb-t))			(* ev-child-t))
+      (ev-child-init		((* ev-child-t) (* ev-child-cb-t) int int)	void)
+      (ev-child-set		((* ev-child-t) int int)			void)
+      (ev-child-pid-get		((* ev-child-t))				int)
+      (ev-child-rpid-get	((* ev-child-t))				int)
+      (ev-child-rpid-set	((* ev-child-t) int)				void)
+      (ev-child-rstatus-get	((* ev-child-t))				int)
+      (ev-child-rstatus-set	((* ev-child-t) int)				void)
+      ;; TODO ev-stat-t
+      (make-ev-stat	(string ev-tstamp (* ev-stat-cb-t))	(* ev-stat-t))
+      ;; ev-idle-t
+      (make-ev-idle	((* ev-idle-cb-t))			(* ev-idle-t))
+      (ev-idle-init	((* ev-idle-t) (* ev-idle-cb-t))	void)
+      ;; ev-prepare-t
+      (make-ev-prepare	((* ev-prepare-cb-t))			(* ev-prepare-t))
+      (ev-prepare-init	((* ev-prepare-t) (* ev-prepare-cb-t))	void)
+      ;; ev-check-t
+      (make-ev-check	((* ev-check-cb-t))			(* ev-check-t))
+      (ev-check-init	((* ev-check-t) (* ev-check-cb-t))	void)
+      ;; ev-embed-t
+      (make-ev-embed		(ev-loop* (* ev-embed-cb-t))			(* ev-embed-t))
+      (ev-embed-init		((* ev-embed-t) (* ev-embed-cb-t) ev-loop*)	void)
+      (ev-embed-set		((* ev-embed-t) ev-loop*)			void)
+      (ev-embed-other-get	((* ev-embed-t))				ev-loop*)
+      ;; ev-fork-t
+      (make-ev-fork	((* ev-fork-cb-t))			(* ev-fork-t))
+      (ev-fork-init	((* ev-fork-t) (* ev-fork-cb-t))	void)
+      ;; ev-cleanup-t
+      (make-ev-cleanup	((* ev-cleanup-cb-t))			(* ev-cleanup-t))
+      (ev-cleanup-init	((* ev-cleanup-t) (* ev-cleanup-cb-t))	void)
+      ;; ev-async-t
+      (make-ev-async	((* ev-async-cb-t))			(* ev-async-t))
+      (ev-async-init	((* ev-async-t) (* ev-async-cb-t))	void)
+      (ev-async-pending	((* ev-async-t))			boolean)
       )
     ])
 
