@@ -44,9 +44,9 @@
             (when (> j 4)
               (ev-break (evbreak 'ONE))))))
       ;; once initialised, clear away the prepare watcher.
-      (ev-free-watcher! prepw))))
+      (ev-prepare-free prepw))))
 
 (ev-run)
-(ev-free-watcher! asyncw)
-(ev-free-watcher! stdinw)
-(ev-free-watcher! tw)
+(ev-async-free asyncw)
+(ev-io-free stdinw)
+(ev-timer-free tw)

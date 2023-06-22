@@ -325,13 +325,6 @@ ev-async watchers create callbacks whose execution will be triggered via calls t
 
 `ev-async-pending?` will return `#t` if a watcher's callback will be run.
 
-## TODO
-
-- [ ] Test and document all remaining high-level functions
-- [ ] Investigate moving the C layer into a pure ftype wrapper as compile-whole-program is so neat
-- [ ] Unify high and low level functions to support watcher records
-- [ ] Implement ftype-guardians to auto free unused watcher records
-
 ## Links
 
 [libev](http://software.schmorp.de/pkg/libev.html)

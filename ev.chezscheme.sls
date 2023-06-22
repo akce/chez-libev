@@ -8,12 +8,6 @@
 
 (library (ev)
   (export
-    ;; Frees any watcher at the cost of processing time.
-   ev-free-watcher!
-
-   ;; These have issues, so don't export for now.
-   ;;free-watchers collect-watchers
-
     ;; enums, bitmaps and IDs.
    EV_VERSION_MAJOR EV_VERSION_MINOR
    evmask EV_NONE EV_IO
@@ -390,8 +384,6 @@
                                             (cb w rev)))))])
                        ;; Note: (locked-object? (foreign-callable-code-object (ftype-pointer-address fp-callback))) => #t
                        (ev-TYPE-start watcher)
-                       ;; Return watcher-context. Caller should keep a reference to this and/or manage (collect-watchers).
-                       #;(watcher-guardian watcher)
                        watcher)))))])))
 
       (define-syntax define-ev-type
@@ -624,8 +616,6 @@
                                             (callback-func w rev)))))])
                        ;; Note: (locked-object? (foreign-callable-code-object (ftype-pointer-address fp-callback))) => #t
                        (start-watcher-func watcher)
-                       ;; Return watcher, caller should keep a reference to this and/or manage (collect-watchers).
-                       #;(watcher-guardian watcher)
                        watcher)))
                  (define ev-TYPE-free
                    (lambda (watcher)
@@ -896,67 +886,14 @@
   ;; (define ev-set-allocator)
   ;; (define ev-set-syserr-cb)
 
-  (define watcher-guardian
-    (make-guardian))
-
-  (define collect-watchers
-    (make-parameter 3
-      (lambda (val)
-        (cond
-          [(and (integer? val) (fx>? val 0))
-           ;; Collect up to val orphaned watchers.
-           val]
-          [(eq? val #t)
-           ;; Collect all orphaned watchers.
-           +inf.0]
-          [else
-            ;; Do not collect any orphaned watchers.
-            #f]))))
-
-  (define ev-free-watcher!
-    (lambda (w)
-      (cond
-        [(ftype-pointer? ev-io-t w)
-         (ev-io-free w)]
-        [(ftype-pointer? ev-timer-t w)
-         (ev-timer-free w)]
-        [(ftype-pointer? ev-periodic-t w)
-         (ev-periodic-free* w)]
-        [(ftype-pointer? ev-signal-t w)
-         (ev-signal-free w)]
-        [(ftype-pointer? ev-child-t w)
-         (ev-child-free w)]
-        [(ftype-pointer? ev-stat-t w)
-         (ev-stat-free w)]
-        [(ftype-pointer? ev-idle-t w)
-         (ev-idle-free w)]
-        [(ftype-pointer? ev-prepare-t w)
-         (ev-prepare-free w)]
-        [(ftype-pointer? ev-check-t w)
-         (ev-check-free w)]
-        [(ftype-pointer? ev-embed-t w)
-         (ev-embed-free w)]
-        [(ftype-pointer? ev-fork-t w)
-         (ev-fork-free w)]
-        [(ftype-pointer? ev-cleanup-t w)
-         (ev-cleanup-free w)]
-        [(ftype-pointer? ev-async-t w)
-         (ev-async-free w)]
-        [else
-          (error 'ev-free-watcher! "Unknown libev watcher ptr" w)])))
-
-  (define free-watchers
-    (case-lambda
-      [()
-       (free-watchers (collect-watchers))]
-      [(c)
-       (when c
-         (let loop ([i c] [w (watcher-guardian)])
-           (when (and w (> i 0))
-             (when (collect-notify)
-               (display "free watcher: ")(display w)(newline))
-             (ev-free-watcher! w)
-             (loop (- i 1) (watcher-guardian)))))]))
+  ;; I should probably extend ev watcher builder to handle custom free functions per field,
+  ;; but this override is good enough for now.
+  (define ev-periodic-free*
+    (lambda (watcher)
+      (ev-periodic-free watcher)
+      (let ([rcb (ev-periodic-reschedule-cb-get watcher)])
+        (unless (ftype-pointer-null? rcb)
+          (unlock-object (foreign-callable-code-object (ftype-pointer-address rcb)))))))
 
   (define-syntax ev-ms
     (syntax-rules ()
@@ -978,15 +915,6 @@
            t]
           [else
             (error 'time->absolute-number "time-utc or time-duration argument required" t)]))))
-
-  ;; I should probably extend ev watcher builder to handle custom free functions per field,
-  ;; but this override is good enough for now.
-  (define ev-periodic-free*
-    (lambda (watcher)
-      (ev-periodic-free watcher)
-      (let ([rcb (ev-periodic-reschedule-cb-get watcher)])
-        (unless (ftype-pointer-null? rcb)
-          (unlock-object (foreign-callable-code-object (ftype-pointer-address rcb)))))))
 
   ;; There are three main ways to use ev-periodic.
   ;; Expose convenience wrappers for them rather than the low level ev-periodic.
