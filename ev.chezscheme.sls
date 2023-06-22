@@ -842,11 +842,11 @@
    (ev-suspend		()			void)
    (ev-resume		()			void)
    ;; event loop manipulation.
-   (ev-feed-event	(void* int)	void)
+   (ev-feed-event	((* ev-watcher) int)	void)
    (ev-feed-fd-event	(int int)	void)
    (ev-feed-signal-event(int)		void)
-   (ev-invoke		(void* int)	void)
-   (ev-clear-pending	(void*)	int)
+   (ev-invoke		((* ev-watcher) int)	void)
+   (ev-clear-pending	((* ev-watcher))	int)
    ;; event watcher control.
    (ev-io-start		((* ev-io-t))	void)
    (ev-io-stop		((* ev-io-t))	void)
