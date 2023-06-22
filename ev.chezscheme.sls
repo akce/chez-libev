@@ -220,6 +220,23 @@
   (define-ftype ev-loop		(struct))
   ;; tv-tstamp is a 'double' unless EV_TSTAMP_T overrides it.
   (define-ftype ev-tstamp		double)
+
+  ;; Define all ev watchers (both pure and ffi wrapped) as implicit ftype subtypes of ev-watcher.
+  ;; ie, ev-watcher must be the first field in watcher ftype struct definitions.
+  ;; This allows for common field access without casting pointers.
+  (define-ftype ev-watcher
+    (struct
+      ;; EV_WATCHER(type)
+      ;; ev.h defines active and pending as int but are boolean according to the manpage.
+      (active	boolean)
+      (pending	boolean)
+      ;; EV_DECL_PRIORITY
+      ;; TODO priority will not be defined if EV_MINPRI == EV_MAXPRI !!!
+      (priority	int)
+      ;; EV_COMMON
+      (data	void*)
+      ))
+
   ;;;; PURE_TEST_END
 
   ;; memory alloc function prototype.
@@ -334,6 +351,7 @@
                  (define-ftype
                    [type-name-t
                      (struct
+                       (base ev-watcher)
                        (field-name field-type)
                        ...)]
                    [ev-TYPE-cb-t
@@ -355,11 +373,11 @@
                      ;;   ev_set_priority ((ev), 0);			\
                      ;;   ev_set_cb ((ev), cb_);			\
                      ;; } while (0)
-                     (ftype-set! type-name-t (active) ev-t 0)
-                     (ftype-set! type-name-t (pending) ev-t 0)
+                     (ftype-set! ev-watcher (active) ev-t #f)
+                     (ftype-set! ev-watcher (pending) ev-t #f)
                      ;; EV_DECL_PRIORITY
                      ;; XXX ev_set_priority() does nothing if EV_MINPRI == EV_MAXPRI !!!
-                     (ftype-set! type-name-t (priority) ev-t 0)
+                     (ftype-set! ev-watcher (priority) ev-t 0)
                      (ftype-set! type-name-t (cb) ev-t cb)))
                  (define make-ev-TYPE
                    (lambda (init-args* ... cb)
@@ -394,14 +412,6 @@
                            [ev-TYPE-cb-t (make-id-syntax #'type-name #'type-name "-cb-t")])
                #'(begin
                    (ev-type-builder type-name type-name-t ev-TYPE-cb-t init-args extra-ftypes
-                     ;; EV_WATCHER(type)
-                     (active	int	private)
-                     (pending	int	private)
-                     ;; EV_DECL_PRIORITY
-                     ;; TODO priority will not be defined if EV_MINPRI == EV_MAXPRI !!!
-                     (priority	int	private)
-                     ;; EV_COMMON
-                     (data	void*	rw)
                      ;; EV_CB_DECLARE(type)
                      (cb	(* ev-TYPE-cb-t)	private)
                      ;; type specific field definitions..
@@ -563,10 +573,7 @@
       (define ev-is-active
         (lambda (watcher)
           ;; CREF: (0 + ((ev_watcher *)(void *)(ev))->active) /* ro, true when the watcher has been started */
-          ;; HACK: Always cast to an ev-io-t, this gets around ftypes structs not having parents.
-          ;; This is safe so long as all our struct types share the same base field layout.
-          (let ([ptr (make-ftype-pointer ev-io-t (ftype-pointer-address watcher))])
-            (ev-io-active-get ptr))))
+          (ftype-ref ev-watcher (active) watcher)))
 
       (define ev-periodic-at
         ;; CREF: (+((ev_watcher_time *)(ev))->at)
@@ -586,10 +593,6 @@
     (define load-libev-ffi
       (load-shared-object (locate-library-object "ev/libchez-ffi.so")))
 
-    ;; TODO need to look at these properly. These are parent types.
-    (define-ftype ev-watcher*	void*)
-    (define-ftype ev-watcher-time*	void*)
-
     (define-syntax define-watcher
       (lambda (x)
         (syntax-case x ()
@@ -603,7 +606,8 @@
                          [ev-TYPE-cb-get (make-id-syntax #'k #'watcher-name "-cb-get")])
              #'(begin
                  (define-ftype
-                   [ev-TYPE-t (struct)]
+                   [ev-TYPE-t (struct
+                                (base ev-watcher))]
                    [ev-TYPE-cb-t (function ((* ev-loop) (* ev-TYPE-t) int) void)])
                  (define watcher-name
                    (lambda (args ... callback-func)
@@ -652,11 +656,10 @@
     (ffi-wrapper-function
       (ev-version-major-def	()		int)
       (ev-version-minor-def	()		int)
-      ;; TODO need to look at these. Note the ev-watcher types.
-      (ev-is-active		(ev-watcher*)	boolean)
-      (ev-priority-get		(ev-watcher*) int)
-      (ev-priority-set		(ev-watcher* int) void)
-      ;; TODO ev-cb, ev-cb-set
+      (ev-is-active		((* ev-watcher))	boolean)
+      (ev-priority-get		((* ev-watcher))	int)
+      (ev-priority-set		((* ev-watcher) int)	void)
+      ;; TODO ev-cb-set
       ;;; Watcher specific C macro wrappers.
       ;; ev-io-t
       (make-ev-io		(int int (* ev-io-cb-t))		(* ev-io-t))
