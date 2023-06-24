@@ -48,6 +48,8 @@
   (Make-ev-fork	((* ev-fork-cb-t))	(* ev-fork-t))
   (Make-ev-cleanup	((* ev-cleanup-cb-t))	(* ev-cleanup-t))
   (Make-ev-async	((* ev-async-cb-t))	(* ev-async-t))
+  (ev-version-major	()	int)
+  (ev-version-minor	()	int)
   )
 
 (ffi-wrapper-function
@@ -130,6 +132,12 @@
       [(_ (x ...) ...)
        #'(begin
            (test-make-memory x ...) ...)])))
+
+;; Keep this synced to major/minor version of libev that these bindings have been tested against.
+(if (> (ev-version-major) 4)
+  (format (current-error-port) "ev-version-major > 4 (value: ~a)~n" (ev-version-major))
+  (if (> (ev-version-minor) 33)
+    (format (current-error-port) "ev-version-minor > 33 (value: ~a)~n" (ev-version-minor))))
 
 (test-ftype-sizeof struct-stat struct-stat-sizeof)
 (test-ftype-sizeof ev-io-t ev-io-sizeof)

@@ -21,10 +21,6 @@
 /* struct stat is embedded inline into ev_stat a couple of times. */
 size_t	Struct_stat_sizeof()	{return sizeof(struct stat);}
 
-/* EV_VERSION_* may not equal ev_version_*() so provide accessors to the #defines. */
-int Ev_version_major_def(void) {return EV_VERSION_MAJOR;}
-int Ev_version_minor_def(void) {return EV_VERSION_MINOR;}
-
 /* Define ev_loop_t shorthand. Saves on typing struct ev_loop. */
 typedef struct ev_loop ev_loop_t;
 
@@ -693,4 +689,175 @@ int
 Ev_async_pending(const ev_async* watcher)
 	{
 	return ev_async_pending(watcher);
+	}
+
+/* libev compile time settings. */
+
+/* EV_VERSION_* may not equal ev_version_*() so provide accessors to the #defines. */
+int Ev_version_major(void) {return EV_VERSION_MAJOR;}
+int Ev_version_minor(void) {return EV_VERSION_MINOR;}
+
+#define X(value)	#value
+#define STR(value)	X(value)
+
+int
+Ev_async_enable(void)
+	{
+	return EV_ASYNC_ENABLE;
+	}
+
+int
+Ev_check_enable(void)
+	{
+	return EV_CHECK_ENABLE;
+	}
+
+int
+Ev_child_enable(void)
+	{
+	return EV_CHILD_ENABLE;
+	}
+
+int
+Ev_cleanup_enable(void)
+	{
+	return EV_CLEANUP_ENABLE;
+	}
+
+int
+Ev_embed_enable(void)
+	{
+	return EV_EMBED_ENABLE;
+	}
+
+int
+Ev_fork_enable(void)
+	{
+	return EV_FORK_ENABLE;
+	}
+
+int
+Ev_idle_enable(void)
+	{
+	return EV_IDLE_ENABLE;
+	}
+
+int
+Ev_periodic_enable(void)
+	{
+	return EV_PERIODIC_ENABLE;
+	}
+
+int
+Ev_prepare_enable(void)
+	{
+	return EV_PREPARE_ENABLE;
+	}
+
+int
+Ev_signal_enable (void)
+	{
+	return EV_SIGNAL_ENABLE;
+	}
+
+int
+Ev_stat_enable(void)
+	{
+	return EV_STAT_ENABLE;
+	}
+
+int
+Ev_walk_enable(void)
+	{
+	return EV_WALK_ENABLE;
+	}
+
+int
+Ev_features(void)
+	{
+	return EV_FEATURES;
+	}
+
+int
+Ev_feature_code(void)
+	{
+	return EV_FEATURE_CODE;
+	}
+
+int
+Ev_feature_data(void)
+	{
+	return EV_FEATURE_DATA;
+	}
+
+int
+Ev_feature_config(void)
+	{
+	return EV_FEATURE_CONFIG;
+	}
+
+int
+Ev_feature_api(void)
+	{
+	return EV_FEATURE_API;
+	}
+
+int
+Ev_feature_watchers(void)
+	{
+	return EV_FEATURE_WATCHERS;
+	}
+
+int
+Ev_feature_backends(void)
+	{
+	return EV_FEATURE_BACKENDS;
+	}
+
+int
+Ev_feature_os(void)
+	{
+	return EV_FEATURE_OS;
+	}
+
+const char*
+Ev_decl_priority(void)
+	{
+	return STR(EV_DECL_PRIORITY);
+	}
+
+int
+Ev_minpri(void)
+	{
+	return EV_MINPRI;
+	}
+
+int
+Ev_maxpri(void)
+	{
+	return EV_MAXPRI;
+	}
+
+int
+Ev_multiplicity(void)
+	{
+	return EV_MULTIPLICITY;
+	}
+
+const char*
+Ev_common(void)
+	{
+	return STR(EV_COMMON);
+	}
+
+const char*
+Ev_atomic_t(void)
+	{
+	return STR(EV_ATOMIC_T);
+	}
+
+const char*
+Ev_tstamp_t(void)
+	{
+	return STR(EV_TSTAMP_T);
 	}

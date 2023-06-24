@@ -9,7 +9,6 @@
 (library (ev)
   (export
     ;; enums, bitmaps and IDs.
-   EV_VERSION_MAJOR EV_VERSION_MINOR
    evmask EV_NONE EV_IO
    evflag EVFLAG_AUTO
    evbackend
@@ -259,10 +258,6 @@
       ;;;; Scheme code that re-implements a C macro should contain a snippet of that code
       ;;;; prefixed by CREF to show what the scheme should do.
       ;;;; It may also help spot when/if that scheme code goes stale..
-
-      ;; Hardcode these to the values in ev.h to keep track of which version this is developed for.
-      (define ev-version-major-def (lambda () 4))
-      (define ev-version-minor-def (lambda () 33))
 
       ;;;; PURE_TEST_START
       (define memset
@@ -670,8 +665,6 @@
 
     ;;; libev-ffi extensions. See ev/ev-ffi.c
     (ffi-wrapper-function
-      (ev-version-major-def	()		int)
-      (ev-version-minor-def	()		int)
       (ev-is-active		((* ev-watcher))	boolean)
       (ev-priority-get		((* ev-watcher))	int)
       (ev-priority-set		((* ev-watcher) int)	void)
@@ -895,9 +888,6 @@
    (ev-async-stop	((* ev-async-t))	void)
    (ev-async-send	((* ev-async-t))	void)
    )
-
-  (define EV_VERSION_MAJOR (ev-version-major-def))
-  (define EV_VERSION_MINOR (ev-version-minor-def))
 
   ;; TODO
   ;; (define ev-set-allocator)
