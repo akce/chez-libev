@@ -230,9 +230,11 @@
       (active	boolean)
       (pending	boolean)
       ;; EV_DECL_PRIORITY
-      ;; TODO priority will not be defined if EV_MINPRI == EV_MAXPRI !!!
+      ;; NOTE: priority may not be defined if EV_MINPRI == EV_MAXPRI !!!
+      ;; Make sure to modify ev-TYPE-init if this is changed.
       (priority	int)
       ;; EV_COMMON
+      ;; EV_COMMON defines `data` by default, update ev-TYPE-init if changed and add accessors.
       (data	void*)
       ))
 
@@ -375,7 +377,6 @@
                      (ftype-set! ev-watcher (active) ev-t #f)
                      (ftype-set! ev-watcher (pending) ev-t #f)
                      ;; EV_DECL_PRIORITY
-                     ;; XXX ev_set_priority() does nothing if EV_MINPRI == EV_MAXPRI !!!
                      (ftype-set! ev-watcher (priority) ev-t 0)
                      (ftype-set! type-name-t (cb) ev-t cb)))
                  (define make-ev-TYPE
