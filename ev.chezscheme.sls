@@ -16,7 +16,6 @@
    evrun
    evbreak
    ev-child-trace
-   EV_DEFAULT
 
    ;; parameter.
    current-loop
@@ -144,6 +143,7 @@
    (chezscheme)
    (ev ftypes-util))
 
+  ;;;; PURE_TEST_START
   (meta begin
     ;; #t: use pure scheme re-implementation of libev C macros.
     ;; #f: use macro->function wrappers from ev-ffi shared lib.
@@ -156,14 +156,14 @@
     ;; This is because a number of libev functions will include `struct ev_loop*` as a first
     ;; parametre only if this is true.
     ;; These bindings aim to generate the correct function prototypes for either case.
-    ;; If #t, set the loop affected by changing or overriding the `(current-loop)` parameter.
+    ;; #t set the loop affected by changing or overriding the `(current-loop)` parameter.
+    ;; #f (current-loop) is defined and exported but ignored.
     (define ev-multiplicity? #t)
     )
 
   (define load-libev
     (load-shared-object "libev.so.4"))
 
-  ;;;; PURE_TEST_START
   (c-bitmap evmask
    (UNDEF		#xFFFFFFFF)
    (READ		#x01)
@@ -346,6 +346,10 @@
                             [ev-TYPE-cb-get (make-id-syntax #'type-name #'type-name "-cb-get")]
                             [ev-TYPE-set (make-id-syntax #'type-name #'type-name "-set")]
                             [ev-TYPE-start (make-id-syntax #'type-name #'type-name "-start")]
+                            [(ev-loop-p ...)
+                              (if ev-multiplicity?
+                                (list #'(* ev-loop))
+                                (list))]
                             [ev-TYPE-stop (make-id-syntax #'type-name #'type-name "-stop")])
              #'(begin
                  (define-ftype
@@ -355,7 +359,7 @@
                        (field-name field-type)
                        ...)]
                    [ev-TYPE-cb-t
-                     (function ((* ev-loop) (* type-name-t) int) void)]
+                     (function (ev-loop-p ... (* type-name-t) int) void)]
                    extra-ftypes* ...)
                  ev-TYPE-FIELD-get ...
                  ev-TYPE-FIELD-set ...
@@ -397,9 +401,13 @@
                                       init-args* ...
                                       (make-ftype-pointer
                                         ev-TYPE-cb-t
-                                        (lambda (loop w rev)
-                                          (parameterize ([current-loop loop])
-                                            (cb w rev)))))])
+                                        (meta-cond
+                                          [ev-multiplicity?
+                                            (lambda (loop w rev)
+                                              (parameterize ([current-loop loop])
+                                                (cb w rev)))]
+                                          [else
+                                            cb])))])
                        ;; Note: (locked-object? (foreign-callable-code-object (ftype-pointer-address fp-callback))) => #t
                        (ev-TYPE-start watcher)
                        watcher)))))])))
@@ -602,22 +610,30 @@
                          [stop-watcher-func (make-id-syntax #'k #'watcher-name "-stop")]
                          [ev-TYPE-free (make-id-syntax #'k #'watcher-name "-free")]
                          [ev-TYPE-t (make-id-syntax #'k #'watcher-name "-t")]
+                         [(ev-loop-p ...)
+                          (if ev-multiplicity?
+                            (list #'(* ev-loop))
+                            (list))]
                          [ev-TYPE-cb-t (make-id-syntax #'k #'watcher-name "-cb-t")]
                          [ev-TYPE-cb-get (make-id-syntax #'k #'watcher-name "-cb-get")])
              #'(begin
                  (define-ftype
                    [ev-TYPE-t (struct
                                 (base ev-watcher))]
-                   [ev-TYPE-cb-t (function ((* ev-loop) (* ev-TYPE-t) int) void)])
+                   [ev-TYPE-cb-t (function (ev-loop-p ... (* ev-TYPE-t) int) void)])
                  (define watcher-name
                    (lambda (args ... callback-func)
                      (let ([watcher (make-watcher-func
                                       args ...
                                       (make-ftype-pointer
                                         ev-TYPE-cb-t
-                                        (lambda (loop w rev)
-                                          (parameterize ([current-loop loop])
-                                            (callback-func w rev)))))])
+                                        (meta-cond
+                                          [ev-multiplicity?
+                                            (lambda (loop w rev)
+                                              (parameterize ([current-loop loop])
+                                                (callback-func w rev)))]
+                                          [else
+                                            cb])))])
                        ;; Note: (locked-object? (foreign-callable-code-object (ftype-pointer-address fp-callback))) => #t
                        (start-watcher-func watcher)
                        watcher)))
@@ -776,11 +792,9 @@
    (ev-feed-signal	(int)			void)
    )
 
-  (define EV_DEFAULT (ev-default-loop))
-
   ;; [parameter] current-loop
   (define current-loop
-    (make-parameter EV_DEFAULT))
+    (make-parameter (ev-default-loop)))
 
   ;; ev-multiplicity? == #t:
   ;;    Public function wrappers are generated so the actual first argument to the underlying libev function
