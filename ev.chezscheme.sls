@@ -89,16 +89,16 @@
      (ev-child-rstatus-set ev-child-rstatus-set!))
    ev-child-start ev-child-stop
 
-   ;; TODO disabled till path strings and stat structs are handled.
-   #;ev-stat ev-stat-free
-   #;(rename
+   ev-stat
+   (rename
      (ev-stat-init ev-stat-init!)
      (ev-stat-set ev-stat-set!)
      (ev-stat-attr-get ev-stat-attr)
      (ev-stat-prev-get ev-stat-prev)
      (ev-stat-interval-get ev-stat-interval)
-     (ev-stat-path-get ev-stat-path))
-   ;;ev-stat-start ev-stat-stop ev-stat-stat
+     (ev-stat-path-get* ev-stat-path)
+     (ev-stat-free* ev-stat-free))
+   ev-stat-start ev-stat-stop ev-stat-stat
 
    ev-idle ev-idle-free
    ev-idle-start ev-idle-stop
@@ -219,6 +219,32 @@
   (define-ftype ev-loop		(struct))
   ;; tv-tstamp is a 'double' unless EV_TSTAMP_T overrides it.
   (define-ftype ev-tstamp		double)
+  (define-ftype const-char unsigned-8)
+  ;; !!! ev_stat embeds two ev-statdata objects which have a number of members and are OS dependant.
+  ;; Add output of `uname -a` (or equivalent) as first comment.
+  ;; (ev info) can be used to help find values for new systems. eg,
+  ;; $ make ffi
+  ;; $ scheme
+  ;; > (import (ev info))
+  ;; > (ev-statdata-sizeof)
+  (meta-cond
+    [(eq? (machine-type) 'arm32le)
+     ;; Linux barovia 5.15.72_1 #1 SMP Sun Oct 16 14:46:40 UTC 2022 armv7l GNU/Linux
+     (define-ftype ev-statdata (array 88 unsigned-8))
+     ;; ev_stat:path ptr has extra padding (aligned to 64bit boundary?) on armv7l.
+     (define-ftype armv7l-padding (array 4 unsigned-8))]
+    [(eq? (machine-type) 'ti3le)
+     ;; Linux palanthus.thyme 6.1.31_1 #1 SMP PREEMPT_DYNAMIC Wed May 31 05:53:37 UTC 2023 i686 GNU/Linux
+     (define-ftype ev-statdata (array 88 unsigned-8))
+     (define-ftype armv7l-padding (struct))]
+    [(eq? (machine-type) 'ta6le)
+     ;; Linux lethe.thyme 6.1.31_1 #1 SMP PREEMPT_DYNAMIC Wed May 31 05:53:37 UTC 2023 x86_64 GNU/Linux
+     (define-ftype ev-statdata (array 144 unsigned-8))
+     (define-ftype armv7l-padding (struct))]
+    [else
+      ;; Unknown architecture, the error will manifest as:
+      ;;   Exception: unrecognized ftype name ev-statdata at line ...
+      (begin)])
 
   ;; Define all ev watchers (both pure and ffi wrapped) as implicit ftype subtypes of ev-watcher.
   ;; ie, ev-watcher must be the first field in watcher ftype struct definitions.
@@ -266,19 +292,6 @@
         (foreign-procedure "memset" (void* int size_t) void*))
 
       (define-ftype ev-watcher-list*	void*)
-      ;; !!! ev_stat embeds two 'struct stat' objects which have a number of members and are OS dependant.
-      ;; Magic number generated via struct-stat-sizeof from libev-ffi.so, use 'make test'.
-      ;; Add output of `uname -a` (or equivalent) as first comment.
-      (meta-cond
-        [(eq? (machine-type) 'ta6le)
-         ;; Linux lethe.thyme 6.1.31_1 #1 SMP PREEMPT_DYNAMIC Wed May 31 05:53:37 UTC 2023 x86_64 GNU/Linux
-         (define-ftype struct-stat (array 144 unsigned-8))]
-        [(eq? (machine-type) 'ti3le)
-         ;; Linux palanthus.thyme 6.1.31_1 #1 SMP PREEMPT_DYNAMIC Wed May 31 05:53:37 UTC 2023 i686 GNU/Linux
-         (define-ftype struct-stat (array 88 unsigned-8))]
-        [else
-          ;; Should probably flag an error for unknown architectures.
-          (begin)])
       ;; !!! For Linux, this is currently an int: see <bits/types.h>
       (define-ftype sig-atomic-t int)
 
@@ -330,6 +343,9 @@
                                        (lambda (ptr val)
                                          (ftype-set! type-name-t (#,syn) ptr (if (flonum? val) val (fixnum->flonum val)))))]
                                   [else
+                                    ;; Generate setters for both ro and rw fields.
+                                    ;; ro setters may be used internally, but they won't
+                                    ;; be exported from this lib. eg, ev-stat-path.
                                     #`(define #,setter-funcname
                                         (lambda (ptr val)
                                           (ftype-set! type-name-t (#,syn) ptr val)))]))
@@ -457,7 +473,7 @@
       (define-ev-type-list ev-io (fd events)
         ()
         (fd		int	ro)
-        (events	int	ro))
+        (events		int	ro))
       (define ev-io-set
         (lambda (ev-t fd events)
           ;; CREF: do { (ev)->fd = (fd_); (ev)->events = (events_) | EV__IOFDSET; } while (0)
@@ -466,7 +482,7 @@
 
       (define-ev-type-time ev-timer (after repeat)
         ()
-        (repeat	ev-tstamp	rw))
+        (repeat		ev-tstamp	rw))
       (define ev-timer-set
         (lambda (ev-t after repeat)
           ;; CREF: do { ((ev_watcher_time *)(ev))->at = (after_); (ev)->repeat = (repeat_); } while (0)
@@ -475,7 +491,7 @@
 
       (define-ev-type-time ev-periodic (offset interval reschedule-cb)
         ([ev-periodic-reschedule-cb-t (function ((* ev-periodic-t) ev-tstamp)		ev-tstamp)])
-        (offset	ev-tstamp	rw)
+        (offset		ev-tstamp	rw)
         (interval	ev-tstamp	rw)
         (reschedule-cb		(* ev-periodic-reschedule-cb-t)	rw))
       (define ev-periodic-set
@@ -487,7 +503,7 @@
 
       (define-ev-type-list ev-signal (signum)
         ()
-        (signum	int	ro))
+        (signum		int	ro))
       (define ev-signal-set
         (lambda (ev-t signum)
           ;; CREF: do { (ev)->signum = (signum_); } while (0)
@@ -495,7 +511,7 @@
 
       (define-ev-type-list ev-child (pid trace)
         ()
-        (flags	int	private)
+        (flags		int	private)
         (pid		int	ro)
         (rpid		int	rw)
         (rstatus	int	rw))
@@ -509,17 +525,24 @@
 
       (define-ev-type-list ev-stat (path interval)
         ()
-        (timer	ev-timer-t	(ref private))
+        (timer		ev-timer-t	(ref private))
         (interval	ev-tstamp	ro)
-        (path		void*		ro)	; FIXME should be const char*, not void*
-        (prev		struct-stat	(ref ro))
-        (attr		struct-stat	(ref ro))
+        (path		(* const-char)	ro)
+        (_		armv7l-padding	unused)
+        (prev		ev-statdata	(ref ro))
+        (attr		ev-statdata	(ref ro))
         (wd		int		private)	; acl not specified in header for this field
         )
       (define ev-stat-set
         (lambda (ev-t path interval)
           ;; CREF: do { (ev)->path = (path_); (ev)->interval = (interval_); (ev)->wd = -2; } while (0)
-          (ev-stat-path-set ev-t path)
+          ;; Free original path if configured.
+          (unless (ftype-pointer-null? (ev-stat-path-get ev-t))
+            (foreign-free (ftype-pointer-address (ev-stat-path-get ev-t))))
+          ;; Copy path scheme string to foreign memory and assign.
+          (ev-stat-path-set
+            ev-t
+            (string->const-char* path))
           (ev-stat-interval-set ev-t interval)
           (ev-stat-wd-set ev-t -2)))
 
@@ -545,11 +568,11 @@
 
       (define-ev-type ev-embed (other)
         ()
-        (other	(* ev-loop)	ro)
+        (other		(* ev-loop)	ro)
         (io		ev-io-t		(ref private))
         (prepare	ev-prepare-t	(ref private))
-        (check	ev-check-t	unused)
-        (timer	ev-timer-t	unused)
+        (check		ev-check-t	unused)
+        (timer		ev-timer-t	unused)
         (periodic	ev-periodic-t	unused)
         (idle		ev-idle-t	unused)
         (fork		ev-fork-t	(ref private))
@@ -561,7 +584,7 @@
 
       (define-ev-type ev-async ()
         ()
-        (sent	sig-atomic-t	private))
+        (sent		sig-atomic-t	private))
       ;; CREF: /* nop, yes, this is a serious in-joke */
       (nop ev-async-set)
 
@@ -714,9 +737,15 @@
       (ev-child-rpid-set	((* ev-child-t) int)				void)
       (ev-child-rstatus-get	((* ev-child-t))				int)
       (ev-child-rstatus-set	((* ev-child-t) int)				void)
-      ;; TODO ev-stat-t
-      (make-ev-stat	(string ev-tstamp (* ev-stat-cb-t))	(* ev-stat-t))
-      (ev-stat-cb-get		((* ev-stat-t))				(* ev-stat-cb-t))
+      ;; ev-stat-t
+      (make-ev-stat		(string ev-tstamp (* ev-stat-cb-t))			(* ev-stat-t))
+      (ev-stat-init		((* ev-stat-t) (* ev-stat-cb-t) string ev-tstamp)	void)
+      (ev-stat-set		((* ev-stat-t) string ev-tstamp)			void)
+      (ev-stat-cb-get		((* ev-stat-t))						(* ev-stat-cb-t))
+      (ev-stat-path-get		((* ev-stat-t))						(* const-char))
+      (ev-stat-interval-get	((* ev-stat-t))						(* const-char))
+      (ev-stat-prev-get		((* ev-stat-t))						(* ev-statdata))
+      (ev-stat-attr-get		((* ev-stat-t))						(* ev-statdata))
       ;; ev-idle-t
       (make-ev-idle	((* ev-idle-cb-t))			(* ev-idle-t))
       (ev-idle-init	((* ev-idle-t) (* ev-idle-cb-t))	void)
@@ -894,14 +923,29 @@
   ;; (define ev-set-allocator)
   ;; (define ev-set-syserr-cb)
 
-  ;; I should probably extend ev watcher builder to handle custom free functions per field,
-  ;; but this override is good enough for now.
+  ;;;; PURE_TEST_START
+
+  ;; This section contains extensions to the base ev api needed by both pure and ffi
+  ;; wrapped versions.
+
   (define ev-periodic-free*
     (lambda (watcher)
       (ev-periodic-free watcher)
       (let ([rcb (ev-periodic-reschedule-cb-get watcher)])
         (unless (ftype-pointer-null? rcb)
           (unlock-object (foreign-callable-code-object (ftype-pointer-address rcb)))))))
+
+  (define ev-stat-path-get*
+    (lambda (ev-t)
+      (const-char*->string (ev-stat-path-get ev-t))))
+
+  (define ev-stat-free*
+    (lambda (ev-t)
+      (unless (ftype-pointer-null? (ev-stat-path-get ev-t))
+        (foreign-free (ftype-pointer-address (ev-stat-path-get ev-t))))
+      (ev-stat-free ev-t)))
+
+  ;;;; PURE_TEST_END
 
   (define-syntax ev-ms
     (syntax-rules ()

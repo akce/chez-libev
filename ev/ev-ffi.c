@@ -18,8 +18,9 @@
 #include <stddef.h>	// offsetof
 #include <sys/stat.h>	// struct stat
 
-/* struct stat is embedded inline into ev_stat a couple of times. */
-size_t	Struct_stat_sizeof()	{return sizeof(struct stat);}
+/* ev_statdata is embedded inline into ev_stat a couple of times. */
+size_t	Ev_statdata_sizeof()	{return sizeof(ev_statdata);}
+size_t	Void_ptr_sizeof()	{return sizeof(void*);}
 
 /* Define ev_loop_t shorthand. Saves on typing struct ev_loop. */
 typedef struct ev_loop ev_loop_t;
@@ -458,19 +459,25 @@ Ev_child_rstatus_offsetof()
 	return offsetof(ev_child, rstatus);
 	}
 
-/*
- * TODO ev_stat getters
- * ev_stat contains two ro ev_statdata structures. Need to think about how to return those.
- */
-
 ev_stat*
 Make_ev_stat(const char* path, ev_tstamp interval, ev_stat_cb_t cb)
 	{
 	ALLOCZ(ev_stat);
 	ev_init(watcher, cb);
-	// TODO provide a way to free(watcher->path).
-	ev_stat_set(watcher, strdup(path), interval);
+	ev_stat_set(watcher, path, interval);
 	return watcher;
+	}
+
+void
+Ev_stat_init(ev_stat* watcher, ev_stat_cb_t cb, const char* path, ev_tstamp interval)
+	{
+	ev_stat_init(watcher, cb, path, interval);
+	}
+
+void
+Ev_stat_set(ev_stat* watcher, const char* path, ev_tstamp interval)
+	{
+	ev_stat_set(watcher, path, interval);
 	}
 
 size_t
@@ -483,6 +490,66 @@ ev_stat_cb_t
 Ev_stat_cb_get(const ev_stat* watcher)
 	{
 	return watcher->cb;
+	}
+
+const char*
+Ev_stat_path_get(const ev_stat* watcher)
+	{
+	return watcher->path;
+	}
+
+size_t
+Ev_stat_path_offsetof()
+	{
+	return offsetof(ev_stat, path);
+	}
+
+ev_tstamp
+Ev_stat_interval_get(const ev_stat* watcher)
+	{
+	return watcher->interval;
+	}
+
+size_t
+Ev_stat_interval_offsetof()
+	{
+	return offsetof(ev_stat, interval);
+	}
+
+ev_statdata*
+Ev_stat_attr_get(ev_stat* watcher)
+	{
+	return &watcher->attr;
+	}
+
+size_t
+Ev_stat_attr_offsetof()
+	{
+	return offsetof(ev_stat, attr);
+	}
+
+ev_statdata*
+Ev_stat_prev_get(ev_stat* watcher)
+	{
+	return &watcher->prev;
+	}
+
+size_t
+Ev_stat_prev_offsetof()
+	{
+	return offsetof (ev_stat, prev);
+	}
+
+size_t
+Ev_stat_timer_offsetof()
+	{
+	return offsetof(ev_stat, timer);
+	}
+
+size_t
+Ev_stat_wd_offsetof()
+	{
+	return offsetof(ev_stat, wd);
 	}
 
 ev_idle*

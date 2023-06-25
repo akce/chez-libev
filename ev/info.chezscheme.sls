@@ -19,6 +19,8 @@
     ev-version-major
     ev-version-minor
     ev-decl-priority
+    ev-statdata-sizeof
+    void-ptr-sizeof
     ev-features
     ev-feature-code
     ev-feature-data
@@ -56,6 +58,8 @@
     (ev-version-major () int)
     (ev-version-minor () int)
     (ev-decl-priority () string)
+    (ev-statdata-sizeof () int)
+    (void-ptr-sizeof () int)
     (ev-features () int)
     (ev-feature-code () boolean)
     (ev-feature-data () boolean)
@@ -85,6 +89,8 @@
 
   (define print-ev-settings
     (lambda ()
+      (format #t "void-ptr-sizeof\t\t~a~n" (void-ptr-sizeof))
+      (format #t "ev-statdata-sizeof\t\t~a~n" (ev-statdata-sizeof))
       (format #t "ev-version-major\t\t~a~n" (ev-version-major))
       (format #t "ev-version-minor\t\t~a~n" (ev-version-minor))
       (format #t "ev-decl-priority\t~s~n" (ev-decl-priority))

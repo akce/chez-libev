@@ -1,5 +1,5 @@
-;; chez scheme ftypes FFI util functions.
-;; Written by Jerry 2019-2021.
+;; Chez Scheme ftypes FFI util functions.
+;; Written by Jerry 2019-2021,2023.
 ;; SPDX-License-Identifier: Unlicense
 (library (ev ftypes-util)
   (export
@@ -7,7 +7,9 @@
    c-bitmap c-enum
    ftype-offsetof
    locate-library-object
-   make-id-syntax)
+   make-id-syntax
+   string->const-char*
+   const-char*->string)
   (import
    (chezscheme))
 
@@ -308,4 +310,33 @@
                         (if (string? s)
                           s
                           (symbol->string (syntax->datum s)))) s-args))))))
+
+  ;; [proc] return scheme string object as a ftypes unsigned-8* memory block.
+  (define string->const-char*
+    (lambda (str)
+      ;; foreign-alloc string and copy in the bytes.
+      (let* ([bv (string->utf8 str)]
+             [len (bytevector-length bv)]
+             [mem (make-ftype-pointer unsigned-8 (foreign-alloc (fx+ len 1)))])
+        (let loop ([i 0])
+          (cond
+            [(fx< i len)
+             (ftype-set! unsigned-8 () mem i (bytevector-u8-ref bv i))
+             (loop (fx+ i 1))]
+            [else
+              ;; Null terminate and return.
+              (ftype-set! unsigned-8 () mem len 0)
+              mem])))))
+
+  ;; [proc] return ftypes (* unsigned-8) as a UTF8 string.
+  (define const-char*->string
+    (lambda (fptr)
+      (utf8->string
+       (let f ([i 0])
+         (let ([c (ftype-ref unsigned-8 () fptr i)])
+           (if (fx= c 0)
+             (make-bytevector i)
+             (let ([bv (f (fx+ i 1))])
+               (bytevector-u8-set! bv i c)
+               bv)))))))
   )

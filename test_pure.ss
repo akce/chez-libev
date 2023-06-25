@@ -53,7 +53,7 @@
   )
 
 (ffi-wrapper-function
-  [struct-stat-sizeof			()	size_t]
+  [ev-statdata-sizeof			()	size_t]
   )
 
 (ffi-wrapper-function
@@ -75,6 +75,12 @@
   [ev-child-rpid-offsetof		()	size_t]
   [ev-child-rstatus-offsetof		()	size_t]
   [ev-stat-sizeof			()	size_t]
+  [ev-stat-attr-offsetof		()	size_t]
+  [ev-stat-interval-offsetof		()	size_t]
+  [ev-stat-path-offsetof		()	size_t]
+  [ev-stat-prev-offsetof		()	size_t]
+  [ev-stat-timer-offsetof		()	size_t]
+  [ev-stat-wd-offsetof			()	size_t]
   [ev-idle-sizeof			()	size_t]
   [ev-prepare-sizeof			()	size_t]
   [ev-check-sizeof			()	size_t]
@@ -116,8 +122,8 @@
     (syntax-case x ()
       [(_ type (args ...) ...)
        (identifier? #'type)
-       (with-syntax ([ffi-func (make-id-syntax #'type "make-" #'type)]
-                     [pure-func (make-id-syntax #'type "Make-" #'type)]
+       (with-syntax ([ffi-func (make-id-syntax #'type "Make-" #'type)]
+                     [pure-func (make-id-syntax #'type "make-" #'type)]
                      [cb-t (make-id-syntax #'type #'type "-cb-t")]
                      [sizeof (make-id-syntax #'type #'type "-sizeof")])
          #'(begin
@@ -139,7 +145,7 @@
   (if (> (ev-version-minor) 33)
     (format (current-error-port) "ev-version-minor > 33 (value: ~a)~n" (ev-version-minor))))
 
-(test-ftype-sizeof struct-stat struct-stat-sizeof)
+(test-ftype-sizeof ev-statdata ev-statdata-sizeof)
 (test-ftype-sizeof ev-io-t ev-io-sizeof)
 (test-ftype-sizeof ev-timer-t ev-timer-sizeof)
 (test-ftype-sizeof ev-periodic-t ev-periodic-sizeof)
@@ -166,6 +172,12 @@
 (test-offset ev-child-t pid ev-child-pid-offsetof)
 (test-offset ev-child-t rpid ev-child-rpid-offsetof)
 (test-offset ev-child-t rstatus ev-child-rstatus-offsetof)
+(test-offset ev-stat-t timer ev-stat-timer-offsetof)
+(test-offset ev-stat-t interval ev-stat-interval-offsetof)
+(test-offset ev-stat-t path ev-stat-path-offsetof)
+(test-offset ev-stat-t prev ev-stat-prev-offsetof)
+(test-offset ev-stat-t attr ev-stat-attr-offsetof)
+(test-offset ev-stat-t wd ev-stat-wd-offsetof)
 (test-offset ev-embed-t other ev-embed-other-offsetof)
 
 ;; Test make-ev-TYPE constructors. ie, compare pure scheme init vs C libev init.
@@ -203,10 +215,6 @@
     ;; trace must be 0 or 1, libev will quietly cast non-zero to 1.
     ;; These bindings don't, but maybe they should?
     #;(444 2))
-  ;; TODO I still need to work out ev-stat path..
-  #;(ev-stat	; (path interval)
-    ("/bin/sh" 5)
-    ("/tmp" 4.0))
   (ev-idle
     ())
   (ev-prepare
@@ -223,5 +231,25 @@
   (ev-async
     ())
   )
+
+;; Constructors for ev-stat will allocate foreign memory for strings (ala strdup)
+;; so we can't compare those. Instead, test the accessors.
+#;(ev-stat	; (path interval)
+  ("/bin/sh" 5)
+  ("/tmp" 4.0))
+
+(let ([st (make-ev-stat "/bin/sh" 5 (make-ftype-pointer ev-stat-cb-t (lambda (loop w rev) (void))))])
+  (cond
+    [(string=? "/bin/sh" (ev-stat-path-get* st))
+     (format verbose? "string= ev-stat-path-get* ~s~n" (ev-stat-path-get* st))]
+    [else
+      (format (current-error-port) "string<> ev-stat-path-get* scheme ~s expected ~s~n" (ev-stat-path-get* st) "/bin/sh")
+      (set! return-code 1)])
+  (cond
+    [(= (ev-stat-interval-get st) 5)
+     (format verbose? "interval= ev-stat-interval-get ~s~n" (ev-stat-interval-get st))]
+    [else
+      (format (current-error-port) "interval<> ev-stat-interval-get scheme ~s expected ~s~n" (ev-stat-interval-get st) 5)
+      (set! return-code 1)]))
 
 (exit return-code)
