@@ -404,9 +404,9 @@
                  (define ev-TYPE-free
                    (lambda (watcher)
                      (ev-TYPE-stop watcher)
-                     (foreign-free (ftype-pointer-address watcher))
-                     ;; unlock the callback function address so that Chez Scheme's gc can remove it.
-                     (unlock-object (foreign-callable-code-object (ftype-pointer-address (ev-TYPE-cb-get watcher))))))
+                     ;; Unlock the callback function address so that Chez Scheme's gc can remove it.
+                     (unlock-object (foreign-callable-code-object (ftype-pointer-address (ev-TYPE-cb-get watcher))))
+                     (foreign-free (ftype-pointer-address watcher))))
                  (define type-name
                    (lambda (init-args* ... cb)
                      (let ([watcher (make-ev-TYPE
