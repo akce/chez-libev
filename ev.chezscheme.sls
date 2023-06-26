@@ -149,7 +149,7 @@
     ;; Using the pure version is easier on systems without access to a C compiler and may
     ;; have benefits when compiling whole programs, however it has higher risk of being
     ;; out of sync with the installed libev.so shared lib.
-    (define pure? #f)
+    (define pure? #t)
 
     ;; ev-multiplicity? must be set to the same value as libev's EV_MULTIPLICITY.
     ;; This is because a number of libev functions will include `struct ev_loop*` as a first
