@@ -1,163 +1,137 @@
-# Chez ev library
+# Chez Scheme libev bindings
 
-chez-libev: [Chez Scheme] bindings for [libev].
-
-[libev] provides an event loop, in a nutshell.
+This project provides [Chez Scheme] bindings for [libev].
 
 [libev] is a small and efficient library that abstracts operating system services like waiting for file I/O, timers, signal handling and more. Clients register callback functions that are executed upon event activity.
 
-`libev` is only available for U*nix like operating systems.
+Typically, [libev] will be used for an application's event loop.
 
-Beware, this API is unstable and likely to change.
+## News
 
-## Compiling and installing
+As of June 2023, these bindings have undergone a major revamp and now use a pure scheme implementation as well as removal of watcher context records. Many missing functions have also been added, although the interface is still incomplete.
+
+This means that:
+- distribution is simplified as there's no need for a compiled shared library
+- usage is easier with the abolition of the extra watcher context record layer, functions now deal with watcher structs.
+
+## Installing
 
 The recommended install method is to use [GNU make](https://www.gnu.org/software/make/).
 
-A C compiler is required, along with the [libev] headers.
+The only dependancies are [Chez Scheme] and [libev].
 
-ie, to compile and install library source and shared-object files to LIBDIR:
+ie, to install library source to the default LIBDIR location:
 
-    $ make install
+```shell
+$ make install
+```
 
 Override LIBDIR to change install location (default is ~/lib/csv\<CHEZ-SCHEME-VERSION\>). eg,
 
-    $ make LIBDIR=/some/other/libdir install
+```shell
+$ make LIBDIR=/some/other/libdir install
+```
 
-Note that LIBDIR must be in (library-directories). One way to add is by setting CHEZSCHEMELIBDIRS.
-
-The default install target will install source files, shared object files, and [whole program optimisation](https://cisco.github.io/ChezScheme/csug9.5/system.html#./system:s117) files to LIBDIR. Other targets exist that install source only (install-src) and objects only (install-so).
-
-Those using this library as part of [compiled programs](https://cisco.github.io/ChezScheme/csug9.5/system.html#./system:s76) will need to also distribute chez-libev's C compiled library `ev/chez-ffi.so`.
+Note that LIBDIR must be in `(library-directories)`. One way to add is by setting CHEZSCHEMELIBDIRS.
 
 ## How To Use
 
+An [example](example.ss) script is provided that demonstrates:
+- `ev-io` waiting on a file (stdin)
+- `ev-prepare` as a one-shot way to initialise `ev-timer`
+- `ev-timer` to countdown to the end
+- `ev-async` to display timer events and how useful this watcher would be for custom user events (via `ev-async-send`)
+- `rec` as a way of defining self-contained watchers that cleanup after themselves without adding to any namespace.
+
 ```scheme
-(import (ev))
+(import
+ (ev)
+ (chezscheme))
+
+(define j 0)
+(define tw #f)
+
+(define asyncw
+  (ev-async
+    (lambda (w rev)
+      (display "timer called ")(display j)(newline)
+      (display "async after timer: pending ")(display (ev-async-pending? w))(newline))))
+
+(define stdinw
+  (ev-io 0 (evmask 'READ)
+    (lambda (w rev)
+      (display "key pressed: ")(display (read-char))(newline)
+      (ev-io-stop w)
+      (ev-break (evbreak 'ALL)))))
+
+(rec prepw
+  (ev-prepare
+    (lambda (w rev)
+      (display "enabling timer watcher..")(newline)
+      (set! tw
+        (ev-timer 1 5
+          (lambda (timer i)
+            (set! j (+ 1 j))
+            (ev-async-send asyncw)
+            (display "async before timer: pending ")(display (ev-async-pending? asyncw))(newline)
+            (when (> j 4)
+              (ev-break (evbreak 'ONE))))))
+      ;; Once initialised, clear away the prepare watcher.
+      (ev-prepare-free prepw))))
+
+(ev-run)
+(ev-async-free asyncw)
+(ev-io-free stdinw)
+(ev-timer-free tw)
 ```
-
-An [example](example.ss) script is provided that demonstrates `async`, `io`, `prepare` and `timer` watchers. eg,
-
-```shell
-$ ./example.ss
-enabling timer watcher..
-async before timer: pending #t
-timer called 1
-async after timer: pending #f
-async before timer: pending #t
-timer called 2
-async after timer: pending #f
-h
-key pressed: h
-$
-```
-
-Note that the `ENTER` or `RETURN` key is pressed after the `h` key in the above demo.
 
 ## API
 
-This document should only be viewed as a companion to the [libev(3)] manpage as this only shows differences between the C level API and the scheme one.
+These bindings are very thin wrappers around [libev]'s C API. As such, it's probably best to learn the general pattern for translation of the native C API to the one provided here. Full education of [libev] should be from their official docs. eg, the [libev(3)] manpage and/or the perl [EV] bindings.
 
-Problems with these bindings should be raised here only.
+All scheme functions follow so-called *lisp-case*. ie, C function `ev_TYPE_start` will be `ev-TYPE-start` here.
 
-Conceptually, these bindings can be split into high-level and low-level functions.
+Some functions have been created specifically for these bindings, namely constructors and destructors.
 
-The high-level functions are specific to these bindings and return and deal with watcher contexts; watcher contexts are [records](https://scheme.com/tspl4/records.html#./records:h0) that wrap the underlying watcher address and callback with enough data to allow for stopping and freeing associated resources.
+### Construction and destruction functions
 
-The low-level bindings map almost directly with [libev] functions except for those that require an ev_loop argument. An ev_loop parameter is omitted in these bindings and instead taken from a `current-loop` parameter.
+Constructor functions use naming convention `ev-TYPE` and destructors use `ev-TYPE-free`, where **TYPE** is the type of the watcher like **io** or **timer** etc. eg, `ev-io` or `ev-timer` etc.
 
-### current-loop parameter
+These constructors are similar to those found in the perl [EV] bindings and follow the same parameter order where callbacks are last in the argument list. And just like their perl counterparts, they also automatically start the watcher.
 
-```
-[parameter]: current-loop
-[default]: EV_DEFAULT. ie, (ev-default-loop)
-```
+ie, they combine memory allocation + `ev-TYPE-init` + `ev-TYPE-start`.
 
-All C functions that take loop argument (usually as their first arg) will, in the scheme interface, refer to it via `current-loop`.
+Use the perl [EV] docs to learn about each type's constructor parameters or look at the C API `ev_TYPE_init` functions but move the callback parameter to the end of the argument list.
 
-eg, for `ev-run`
+Destructors have the naming convention `ev-TYPE-free`. eg, call `ev-io-free` when finished with an `ev-io` watcher.
 
-C version | Scheme version
---------- | --------------
-ev_run(EV_DEFAULT_ 0) | (ev-run) or (ev-run 0)
+Destructors will stop the watcher and free associated resources and memory. ie, `ev-TYPE-free` calls `ev-TYPE-stop`, unlocks all function callbacks, frees path strings in the case of `ev-stat` watchers, and finally deallocates watcher memory itself.
 
-This also affects the callback signature for high-level bindings. `current-loop` is modified for the duration of the callback and omitted from the arg list.
+Destructors must be called else suffer resource leaks.
 
-C signature | Scheme signature
------------ | ----------------
-int ev_\<type>_callback(struct ev_loop*, struct ev_\<type>*, int revents) | (lambda (ev-watcher* revents))
-
-Where:
-- `ev-watcher*` is an ftype watcher address.
-- `revents` is an int.
-
-Note that the low-level bindings include the ev_loop pointer in their callbacks and thus look like their C counterparts.
-
-### High level bindings 
-
-These bindings are similar to the extra ones added to the perl [EV] bindings. They are written in scheme via the `define-watcher` syntax transformer and can be thought of as constructors that combine allocating and starting watchers.
-
-They return a watcher context record that should be freed by client code using `ev-free-watcher!`.
-
-Parameter ordering also follows the perl [EV] style where callbacks and anonymous functions are the last argument to the function.
-
-The following sections will document the higher level functions as defined by these bindings.
-
-#### ev-free-watcher!
-
-```
-[procedure] ev-free-watcher!
-[args] watcher-record
-[return] none
-```
-
-This function takes a watcher record, as created by one of the high-level functions - stops the watcher, unlocks the ftype function callback (as discussed [here](https://cisco.github.io/ChezScheme/csug9.5/foreign.html#./foreign:s143)), and frees associated memory.
-
-Warning: an earlier release accidentally published this as `free-watcher`. Please change code to the new name as `free-watcher` will be removed at some point soon.
-
-#### ev-watcher-address
-
-```
-[procedure] ev-watcher-address
-[args] watcher-record
-[return] void* address for the libev watcher
-```
-
-This function takes a watcher record, as created by one of the high-level functions.
-
-`ev-watcher-address` is used to access the underlying watcher address as used by libev. This address is still required by the low-level functions like `ev-timer-stop` etc.
-
-#### ev-io
+#### ev-io / ev-io-free
 
 ```
 [procedure] ev-io
 [args] file-descriptor evmask callback
-[return] watcher-record
+[return] ev-io-t
 ```
 
 Watches `file-descriptor` for event types specified by `evmask`. Event types are usually `(evmask 'READ)` or `(evmask 'WRITE)`.
 
-#### ev-timer
+#### ev-timer / ev-timer-free
 
 ```
 [procedure] ev-timer
 [args] after repeat callback
-[return] watcher-record
+[return] ev-timer-t
 ```
 
 `ev-timer` creates and starts an ev_timer watcher that initially fires `after` delay, and then continuously fires at `repeat` intervals.
 
 Both `after` and `repeat` are in seconds and may be fixnums or flonums.
 
-#### ev-periodic
-
-```
-[procedure] ev-periodic
-[args] offset interval reschedule-callback callback
-[return] watcher-record
-```
-
-Similar to `ev-timer` but tied to computer clock time. This one is a bit involved so it's probably best to refer to [libev(3)] for details.
+#### ev-periodic / ev-periodic-free
 
 `ev-periodic` has 3 major modes for which `ev-absolute-timer`, `ev-interval-timer` and `ev-manual-timer` are locally defined convenience functions so hopefully it won't be necessary to use `ev-periodic` directly.
 
@@ -166,7 +140,7 @@ Similar to `ev-timer` but tied to computer clock time. This one is a bit involve
 ```
 [syntax] ev-absolute-timer
 [args] time callback
-[return] watcher-record
+[return] ev-periodic-t
 ```
 
 Execute `callback` after `time` delay or at absolute `time`.
@@ -178,7 +152,7 @@ Execute `callback` after `time` delay or at absolute `time`.
 ```
 [syntax] ev-interval-timer
 [args] [offset] interval callback
-[return] watcher-record
+[return] ev-periodic-t
 ```
 
 Creates a timer that triggers based on computer clock times. eg, to create a timer that runs at the start of every minute:
@@ -200,17 +174,17 @@ The default value for `offset` is 0.
 ```
 [syntax] ev-manual-timer
 [args] reschedule-callback callback
-[return] watcher-record
+[return] ev-periodic-t
 ```
 
 TBD
 
-#### ev-signal
+#### ev-signal / ev-signal-free
 
 ```
 [procedure] ev-signal
 [args] signum callback
-[return] watcher-record
+[return] ev-signal-t
 ```
 
 Invokes `callback` on receipt of signal `signum`.
@@ -229,108 +203,158 @@ eg, fake a **KEY_RESIZE** keypress to `ev-io` STDIN watchers in order to handle 
     (ev-feed-fd-event STDIN_FD (evmask 'READ))))
 ```
 
-#### ev-child
+#### ev-child / ev-child-free
 
 ```
 [procedure] ev-child
 [args] pid trace callback
-[return] watcher-record
+[return] ev-child-t
 ```
 
 Watch for status changes on a process or processes. See your system's *wait(2)* manpage for values of `pid`.
 
 `trace` is 0 to wait only for terminating processes, or 1 to include stopped and continued state changes.
 
-I've had luck waiting for processes created via [open-process-ports](https://cisco.github.io/ChezScheme/csug9.5/foreign.html#./foreign:s5). Chez reaps child processes as part of garbage collection (search S_child_processes in the Chez code) and so i don't think these systems clash with each other.
+I've had luck waiting for processes created via [open-process-ports](https://cisco.github.io/ChezScheme/csug9.5/foreign.html#./foreign:s5). Chez Scheme reaps child processes as part of garbage collection (search `S_child_processes` in Chez Scheme's code) so i can't guarantee that these systems won't clash with each other.
 
-#### ev-stat
+#### ev-stat / ev-stat-free
 
 ```
 [procedure] ev-stat
 [args] path interval callback
-[return] watcher-record
+[return] ev-stat-t
 ```
 
 TBD
 
-#### ev-idle
+#### ev-idle / ev-idle-free
 
 ```
 [procedure] ev-idle
 [args] callback
-[returns] watcher-record
+[returns] ev-idle-t
 ```
 
 TBD
 
-#### ev-prepare
+#### ev-prepare / ev-prepare-free
 
 ```
 [procedure] ev-prepare
 [args] callback
-[returns] watcher-record
+[returns] ev-prepare-t
 ```
 
 ev-prepare creates watchers that execute their callback just before the ev-loop would go to sleep.
 
-#### ev-check
+#### ev-check / ev-check-free
 
 ```
 [procedure] ev-check
 [args] callback
-[returns] watcher-record
+[returns] ev-check-t
 ```
 
 ev-check creates watchers whose callback functions are executed just after the ev-loop has woken up.
 
-#### ev-embed
+#### ev-embed / ev-embed-free
 
 ```
 [procedure] ev-embed
 [args] other callback
-[returns] watcher-record
+[returns] ev-embed-t
 ```
 
 TBD
 
-#### ev-fork
+#### ev-fork / ev-fork-free
 
 ```
 [procedure] ev-fork
 [args] callback
-[returns] watcher-record
+[returns] ev-fork-t
 ```
 
 TBD
 
-#### ev-cleanup
+#### ev-cleanup / ev-cleanup-free
 
 ```
 [procedure] ev-cleanup
 [args] callback
-[returns] watcher-record
+[returns] ev-cleanup-t
 ```
 
 TBD
 
-#### ev-async
+#### ev-async / ev-async-free
 
 ```
 [procedure] ev-async
 [args] callback
-[returns] watcher-record
+[returns] ev-async-t
 ```
 
 ev-async watchers create callbacks whose execution will be triggered via calls to `ev-async-send`.
 
 `ev-async-pending?` will return `#t` if a watcher's callback will be run.
 
-## TODO
+### Multiplicity
 
-- [ ] Test and document all remaining high-level functions
-- [ ] Investigate moving the C layer into a pure ftype wrapper as compile-whole-program is so neat
-- [ ] Unify high and low level functions to support watcher records
-- [ ] Implement ftype-guardians to auto free unused watcher records
+[libev] provides build-time configuration of loop multiplicity. ie, whether to handle multiple event loops or not. This manifests chiefly in two ways:
+- C callback functions may or may not start with a ev-loop parameter
+- a number of C watcher control functions like `ev_TYPE_stop()` may or may not start with an ev-loop parameter.
+
+Regardless of whether multiplicity is true or not, public scheme functions and callbacks do **NOT** include the loop parameter in function argument lists.
+
+Instead, if multiplicity is true, then these bindings will grab the value of the `(current-loop)` [parameter](https://cisco.github.io/ChezScheme/csug9.5/system.html#./system:h13) and pass that to the underlying C function. eg, if C function `ev_now` has signature `ev_now(ev_loop* loop)`, then our bindings take no arguments but call the underlying C function with the value of `(current-loop)`. So a scheme call `(ev-now)` will end up with a translated C call of `ev_now(current_loop)`.
+
+The same is true for all callbacks coming from [libev] to scheme. These bindings override `(current-loop)` with the provided ev-loop value before calling the user callback function. This means that all ev-TYPE-callback functions must have signature:
+
+```scheme
+(define my-ev-TYPE-callback
+ (lambda (ev-t revents)
+   ;; (current-loop) will be set to the callback loop value if EV_MULTIPLITY is true.
+   ..
+   ))
+```
+
+#### current-loop parameter
+
+```
+[parameter]: current-loop
+[default]: (ev-default-loop)
+```
+
+This parameter is implicitly passed to all multiplicity controlled [libev] C functions. It needs to be overridden or manually set for a user to affect [libev] ev-loop choice.
+
+eg, use [parameterize](https://cisco.github.io/ChezScheme/csug9.5/system.html#./system:s250) to change ev-loop used by `ev-TYPE-stop` call:
+```scheme
+(parameterize ([current-loop my-second-ev-loop])
+  (ev-io-stop my-io-watcher))
+```
+
+`current-loop` still exists if multiplicity is false, it's just ignored.
+
+### Obsolete watcher context records
+
+Before June 2023, the idea of high level functions equated to constructors creating watcher context records.
+
+eg, `ev-io` returned a watcher context record that contained a reference to an ev-watcher ftype pointer as well as other bits of internal housekeeping. This watcher record was freed via `ev-free-watcher!`.
+
+Now all functions deal with the ev-watcher object directly.
+
+#### ev-free-watcher!
+
+Removed as of June 2023.
+
+Instead use watcher specific free functions. eg, Use `ev-io-free` for watchers created with `ev-io`.
+
+#### ev-watcher-address
+
+Removed as of June 2023.
+
+Watcher context records no longer exist. Use returned objects in functions directly. eg, Use `ev-io-stop` on objects returned by `ev-io`.
 
 ## Links
 
@@ -353,6 +377,10 @@ Perl [EV](http://software.schmorp.de/pkg/EV.html) bindings.
 [R6RS]: http://r6rs.org "R6RS"
 
 ## Hacking
+
+[ev.chezscheme.sls](ev.chezscheme.sls) can be modified to turn multiplicity on or off (on by default) and can be changed to use the old compiled shared library version (pure scheme is used by default).
+
+It's highly recommended to test the pure bindings on any new system or on [libev] upgrades. Use `make test` for that. It requires GNU sed, GCC, and [libev] development headers.
 
 The **GNUmakefile** includes a `CONFIG_H` variable. This is for sites that have compiled their own custom libev with added ev_watcher fields.
 
