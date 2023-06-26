@@ -50,6 +50,12 @@
   (Make-ev-async	((* ev-async-cb-t))	(* ev-async-t))
   (ev-version-major	()	int)
   (ev-version-minor	()	int)
+  (ev-default-loop	(int)			(* ev-loop))
+  (ev-io-start		((* ev-loop) (* ev-io-t))		void)
+  (Ev-io-modify		((* ev-io-t) int)	void)
+  (Ev-is-active		((* ev-watcher))	boolean)
+  (Ev-periodic-at	((* ev-periodic-t))	ev-tstamp)
+  (Ev-async-pending	((* ev-async-t))	boolean)
   )
 
 (ffi-wrapper-function
@@ -91,29 +97,35 @@
   [ev-async-sizeof			()	size_t]
   )
 
+(define-syntax say
+  (syntax-rules ()
+    [(_ fmt-str args ...)
+     (format verbose? fmt-str args ...)]))
+
+(define-syntax doh!
+  (syntax-rules ()
+    [(_ fmt-str args ...)
+     (begin
+       (format (current-error-port) fmt-str args ...)
+       (set! return-code 1))]))
+
 (define-syntax test-ftype-sizeof
   (syntax-rules ()
     [(_ ev-t c-sizeof)
      (let ([lhs (ftype-sizeof ev-t)]
            [rhs (c-sizeof)])
-       (cond
-         [(= lhs rhs)
-          (format verbose? "sizeof ~a scheme ~d == c ~d~n" 'ev-t lhs rhs)]
-         [else
-           (format (current-error-port) "sizeof ~a scheme ~d != c ~d~n" 'ev-t lhs rhs)
-           (set! return-code 1)]))]))
+       (if (= lhs rhs)
+         (say "sizeof ~a scheme ~d == c ~d~n" 'ev-t lhs rhs)
+         (doh! "sizeof ~a scheme ~d != c ~d~n" 'ev-t lhs rhs)))]))
 
 (define-syntax test-offset
   (syntax-rules ()
     [(_ ev-t field c-offset)
      (let ([lhs (ftype-offsetof ev-t field)]
            [rhs (c-offset)])
-       (cond
-         [(= lhs rhs)
-          (format verbose? "~a.~a scheme ~d == c ~d~n" 'ev-t 'field lhs rhs)]
-         [else
-           (format (current-error-port) "~a.~a scheme ~d != c ~d~n" 'ev-t 'field lhs rhs)
-           (set! return-code 1)]))]))
+       (if (= lhs rhs)
+         (say "~a.~a scheme ~d == c ~d~n" 'ev-t 'field lhs rhs)
+         (doh! "~a.~a scheme ~d != c ~d~n" 'ev-t 'field lhs rhs)))]))
 
 ;; TODO test return-type? predicate.
 ;; TODO test free watcher. I'm not sure how, maybe define my own mem alloc?
@@ -131,8 +143,8 @@
                     [mem-ffi (ffi-func args ... cb)]
                     [mem-pure (pure-func args ... cb)])
                (if (mem=? mem-ffi mem-pure (sizeof))
-                 (format verbose? "make-mem= ~a bytes ~a args ~s~n" 'type (sizeof) '(args ...))
-                 (format (current-error-port) "make-mem<> ~a bytes ~a args ~s~n" 'type (sizeof) '(args ...))))
+                 (say "make-mem= ~a bytes ~a args ~s~n" 'type (sizeof) '(args ...))
+                 (doh! "make-mem<> ~a bytes ~a args ~s~n" 'type (sizeof) '(args ...))))
              ...
              ))]
       [(_ (x ...) ...)
@@ -140,10 +152,10 @@
            (test-make-memory x ...) ...)])))
 
 ;; Keep this synced to major/minor version of libev that these bindings have been tested against.
-(if (> (ev-version-major) 4)
-  (format (current-error-port) "ev-version-major > 4 (value: ~a)~n" (ev-version-major))
+(if (not (= (ev-version-major) 4))
+  (say "Warning: ev-version-major != 4 (value: ~a)~n" (ev-version-major))
   (if (> (ev-version-minor) 33)
-    (format (current-error-port) "ev-version-minor > 33 (value: ~a)~n" (ev-version-minor))))
+    (say "Warning: ev-version-minor > 33 (value: ~a)~n" (ev-version-minor))))
 
 (test-ftype-sizeof ev-statdata ev-statdata-sizeof)
 (test-ftype-sizeof ev-io-t ev-io-sizeof)
@@ -239,17 +251,61 @@
   ("/tmp" 4.0))
 
 (let ([st (make-ev-stat "/bin/sh" 5 (make-ftype-pointer ev-stat-cb-t (lambda (loop w rev) (void))))])
-  (cond
-    [(string=? "/bin/sh" (ev-stat-path-get* st))
-     (format verbose? "string= ev-stat-path-get* ~s~n" (ev-stat-path-get* st))]
-    [else
-      (format (current-error-port) "string<> ev-stat-path-get* scheme ~s expected ~s~n" (ev-stat-path-get* st) "/bin/sh")
-      (set! return-code 1)])
-  (cond
-    [(= (ev-stat-interval-get st) 5)
-     (format verbose? "interval= ev-stat-interval-get ~s~n" (ev-stat-interval-get st))]
-    [else
-      (format (current-error-port) "interval<> ev-stat-interval-get scheme ~s expected ~s~n" (ev-stat-interval-get st) 5)
-      (set! return-code 1)]))
+  (if (string=? "/bin/sh" (ev-stat-path-get* st))
+    (say "string= ev-stat-path-get* ~s~n" (ev-stat-path-get* st))
+    (doh! "string<> ev-stat-path-get* scheme ~s expected ~s~n" (ev-stat-path-get* st) "/bin/sh"))
+  (if (= (ev-stat-interval-get st) 5)
+    (say "interval= ev-stat-interval-get ~s~n" (ev-stat-interval-get st))
+    (doh! "interval<> ev-stat-interval-get scheme ~s expected ~s~n" (ev-stat-interval-get st) 5)))
+
+;;;; Test extra macro redefinitions.
+
+;; ev-io-modify
+(let* ([cb (make-ftype-pointer ev-io-cb-t (lambda (w rev) (void)))]
+       [pure-mem (make-ev-io 2 (evmask 'READ 'WRITE) cb)]
+       [ffi-mem (Make-ev-io 2 (evmask 'READ 'WRITE) cb)])
+  (ev-io-modify pure-mem (evmask 'WRITE))
+  (Ev-io-modify ffi-mem (evmask 'WRITE))
+  (if (mem=? pure-mem ffi-mem (ev-io-sizeof))
+    (say "mem= ev-io-modify (2 2)~n")
+    (doh! "mem<> ev-io-modify (2 2)~n")))
+
+;; ev-is-active
+(let ([pure-mem (make-ev-io 0 (evmask 'READ) (make-ftype-pointer ev-io-cb-t (lambda (w rev) (void))))]
+      [ffi-mem (Make-ev-io 0 (evmask 'READ) (make-ftype-pointer ev-io-cb-t (lambda (w rev) (void))))])
+  (if (and (not (ev-is-active pure-mem))	; must start inactive
+           (eq? (ev-is-active pure-mem) (ev-is-active ffi-mem)))
+    (say "= ev-is-active ~a~n" (ev-is-active pure-mem))
+    (doh! "!= ev-is-active scheme ~a ffi ~a~n" (ev-is-active pure-mem) (ev-is-active ffi-mem)))
+  ;; Test the ffi wrapper too.
+  (if (and (not (Ev-is-active pure-mem))	; must start inactive
+           (eq? (Ev-is-active pure-mem) (Ev-is-active ffi-mem)))
+    (say "= Ev-is-active ~a~n" (Ev-is-active pure-mem))
+    (doh! "!= Ev-is-active scheme ~a ffi ~a~n" (Ev-is-active pure-mem) (Ev-is-active ffi-mem)))
+  ;; Assume ev-multiplicity? is #t...
+  ;; `ev-io-start` is locally defined and needs the loop arg.
+  (ev-io-start (ev-default-loop 0) pure-mem)
+  (ev-io-start (ev-default-loop 0) ffi-mem)
+  (if (and (ev-is-active pure-mem)
+           (eq? (ev-is-active pure-mem) (ev-is-active ffi-mem)))
+    (say "= ev-is-active #t~n")
+    (doh! "!= ev-is-active scheme ~a ffi ~a~n" (ev-is-active pure-mem) (ev-is-active ffi-mem)))
+  ;; Test the ffi wrapper too.
+  (if (and (Ev-is-active pure-mem)
+           (eq? (Ev-is-active pure-mem) (Ev-is-active ffi-mem)))
+    (say "= Ev-is-active #t~n")
+    (doh! "!= Ev-is-active scheme ~a ffi ~a~n" (Ev-is-active pure-mem) (Ev-is-active ffi-mem))))
+
+;; ev-periodic-at
+(let ([pure-mem (make-ev-periodic 10 5 rcb (make-ftype-pointer ev-periodic-cb-t (lambda (loop w rev) (void))))])
+  (if (= (ev-periodic-at pure-mem) (Ev-periodic-at pure-mem))
+    (say "= ev-periodic-at ~a~n" (ev-periodic-at pure-mem))
+    (doh! "!= ev-periodic-at scheme ~a ffi ~a~n" (ev-periodic-at pure-mem) (Ev-periodic-at pure-mem))))
+
+;; ev-async-pending
+(let ([pure-mem (make-ev-async (make-ftype-pointer ev-async-cb-t (lambda (loop w rev) (void))))])
+  (if (eq? (ev-async-pending pure-mem) (Ev-async-pending pure-mem))
+    (say "= ev-async-pending ~a~n" (ev-async-pending pure-mem))
+    (doh! "!= ev-async-pending scheme ~a ffi ~a~n" (ev-async-pending pure-mem) (Ev-async-pending pure-mem))))
 
 (exit return-code)
