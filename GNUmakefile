@@ -118,7 +118,7 @@ $(BUILDDIR)/%.wpo: %.sls
 $(ITOPWPO): $(ITOPSRC) $(ISUBSRC)
 
 $(LIBDIR)/%: %
-	$(INSTALL) -p -D "$<" "$@"
+	$(INSTALL) -m 644 -p -D "$<" "$@"
 
 build: $(BTOPWPO)
 
