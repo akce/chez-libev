@@ -183,7 +183,7 @@
    (CUSTOM		#x01000000)
    (ERROR		#x80000000))
   (define EV_NONE	#x00)
-  (define EV_IO		(evmask 'READ))
+  (define EV_IO		(evmask READ))
 
   (c-bitmap evflag
    (NOENV		#x01000000)
@@ -478,7 +478,7 @@
         (lambda (ev-t fd events)
           ;; CREF: do { (ev)->fd = (fd_); (ev)->events = (events_) | EV__IOFDSET; } while (0)
           (ev-io-fd-set ev-t fd)
-          (ev-io-events-set ev-t (bitwise-ior events (evmask '_IOFDSET)))))
+          (ev-io-events-set ev-t (bitwise-ior events (evmask _IOFDSET)))))
 
       (define-ev-type-time ev-timer (after repeat)
         ()
@@ -595,7 +595,7 @@
           ;; CREF: do { (ev)->events = (ev)->events & EV__IOFDSET | (events_); } while (0)
           ;; bitwise & (AND) has higher precedence than bitwise | (OR), so this looks
           ;; like it disables all existing events except IOFDSET and enables new events.
-          (ev-io-events-set ev-t (bitwise-ior events (evmask '_IOFDSET)))))
+          (ev-io-events-set ev-t (bitwise-ior events (evmask _IOFDSET)))))
 
       (define ev-is-active
         (lambda (watcher)
@@ -844,7 +844,7 @@
    (ev-break		(int)		void
      (case-lambda
        [()
-        (c/func (evbreak 'ONE))]
+        (c/func (evbreak ONE))]
        [(how)
         (c/func how)]))
    (ev-run		(int)		boolean

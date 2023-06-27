@@ -38,6 +38,17 @@
                             c))
                         (symbol->string (syntax->datum stx))))))
 
+  (meta define make-id-syntax
+    (lambda (ctx . s-args)
+      (datum->syntax
+        ctx
+        (string->symbol
+          (apply string-append
+                 (map (lambda (s)
+                        (if (string? s)
+                          s
+                          (symbol->string (syntax->datum s)))) s-args))))))
+
   (meta define has-ev-tstamp?
         (lambda (syms)
           (find
@@ -185,7 +196,7 @@
   ;; > (name 'j)
   ;; Exception in name: value not defined for identifier j in enum
   ;; Type (debug) to enter the debugger.
-  (define-syntax c-enum
+  (define-syntax define-c-enum
     (lambda (stx)
       (syntax-case stx ()
         [(_ name enumdef1 enumdef* ...)
@@ -195,13 +206,6 @@
               (case-lambda
                [()
                 '((esym . eid) ...)]
-               [(x)
-                (name
-                 (cond
-                  [(symbol? x)  'get-value]
-                  [(number? x)  'get-id]
-                  [else x])
-                 x)]
                [(cmd arg)
                 (case cmd
                   [(get-value)
@@ -214,6 +218,32 @@
                      [else (error (syntax->datum #'name) (format #f "identifier not defined for value ~d in enum" arg))])]
                   [else
                    (error (syntax->datum #'name) (format #f "unknown enum command ~s" cmd))])])))])))
+
+  (define-syntax c-enum
+    (lambda (stx)
+      (syntax-case stx ()
+        [(_ name enumdef enumdef* ...)
+         (with-syntax ([enum-meta (make-id-syntax #'name #'name "-meta")]
+                       [enum-proc (make-id-syntax #'name #'name "-proc")])
+           #'(begin
+               ;; One for meta phase, and one for runtime.
+               (meta define-c-enum enum-meta enumdef enumdef* ...)
+               (define-c-enum enum-proc enumdef enumdef* ...)
+               (define-syntax name
+                 (lambda (x)
+                   (syntax-case x ()
+                     [(_ val)
+                      (and (identifier? #'val) (number? (syntax->datum #'val)))
+                      (with-syntax ([result (enum-meta 'get-id (syntax->datum #'val))])
+                        #'result)]
+                     [(_ val)
+                      (identifier? #'val)
+                      (with-syntax ([result (enum-meta 'get-value (syntax->datum #'val))])
+                        #'result)]
+                     [(_ val)
+                      #'(enum-proc 'get-value val)]
+                     [(_)
+                      #'(enum-proc)])))))])))
 
   ;; [syntax] c-bitmap: define a bitmap enumeration.
   ;; Behaves as c-enum, except each field defines a bit. Querying for symbols returns a list.
@@ -240,7 +270,7 @@
   ;; (A B C)
   ;; > (flags #b1100)
   ;; (B C)
-  (define-syntax c-bitmap
+  (define-syntax c-bitmap-proc
     (lambda (stx)
       (syntax-case stx ()
         [(_ name bitdef1 bitdef* ...)
@@ -256,28 +286,55 @@
                         [(esym) eid] ...
                         [else
                           (errorf 'name "~a not found in bitmap" sym)]))])
-                 (case-lambda
-                   [()
-                    '((esym . eid) ...)]
-                   [args
-                     (cond
-                       [(symbol? (car args))
-                        (fold-left
-                          (lambda (acc x)
-                            (bitwise-ior acc (sym->int x)))
-                          0
-                          args)]
-                       [(number? (car args))
-                        (let loop ([ids '(eid ...)] [syms '(esym ...)])
-                          (cond
-                            [(null? ids)
-                             '()]
-                            [(= (bitwise-and (car args) (car ids)) (car ids))
-                             (cons (car syms) (loop (cdr ids) (cdr syms)))]
-                            [else
-                              (loop (cdr ids) (cdr syms))]))]
-                       [else
-                         (errorf 'name "unknown bitmap command ~a" args)])]))))])))
+                 (lambda (args)
+                   (cond
+                     [(null? args)
+                      (list (cons 'esym eid) ...)]
+                     [(symbol? (car args))
+                      (fold-left
+                        (lambda (acc x)
+                          (bitwise-ior acc (sym->int x)))
+                        0
+                        args)]
+                     [(number? (car args))
+                      (let loop ([ids '(eid ...)] [syms '(esym ...)])
+                        (cond
+                          [(null? ids)
+                           '()]
+                          [(= (bitwise-and (car args) (car ids)) (car ids))
+                           (cons (car syms) (loop (cdr ids) (cdr syms)))]
+                          [else
+                            (loop (cdr ids) (cdr syms))]))]
+                     [else
+                       (errorf 'name "unknown bitmap command ~a" args)])))))])))
+
+  (define-syntax c-bitmap
+    (lambda (stx)
+      (syntax-case stx ()
+        [(_ name bitdef bitdef* ...)
+         (with-syntax ([bitmap-meta (make-id-syntax #'name #'name "-meta")]
+                       [bitmap-proc (make-id-syntax #'name #'name "-proc")])
+           #'(begin
+               ;; One for meta phase, and one for runtime.
+               (meta c-bitmap-proc bitmap-meta bitdef bitdef* ...)
+               (c-bitmap-proc bitmap-proc bitdef bitdef* ...)
+               (define-syntax name
+                 (lambda (x)
+                   (define identifiers?
+                     (lambda (vals)
+                       (if (null? vals)
+                         #t
+                         (and (identifier? (car vals))
+                              (identifiers? (cdr vals))))))
+                   (syntax-case x ()
+                     [(_ val val* (... ...))
+                      ;; val ensures that this is only for meta phase evaluation.
+                      (identifiers? #'(val val* (... ...)))
+                      (with-syntax ([result (bitmap-meta (map syntax->datum #'(val val* (... ...))))])
+                        #'result)]
+                     [(_ val* (... ...))
+                      ;; val* is either empty or quoted symbols, used for runtime eval.
+                      #'(bitmap-proc (list val* (... ...)))])))))])))
 
   ;; [syntax] ftype-offsetof byte offset of field from start of struct
   ;; Equivalent to C99's offsetof() macro.
@@ -299,17 +356,6 @@
           (car fps)]
          [else
           (loop (cdr fps))]))))
-
-  (define make-id-syntax
-    (lambda (ctx . s-args)
-      (datum->syntax
-        ctx
-        (string->symbol
-          (apply string-append
-                 (map (lambda (s)
-                        (if (string? s)
-                          s
-                          (symbol->string (syntax->datum s)))) s-args))))))
 
   ;; [proc] return scheme string object as a ftypes unsigned-8* memory block.
   (define string->const-char*
